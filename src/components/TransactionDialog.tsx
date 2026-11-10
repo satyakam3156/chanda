@@ -8,8 +8,9 @@ import { describeSplit, EQUAL_SPLIT, normaliseSplit, validateSplit } from '@/lib
 import type { Split } from '@/lib/split'
 import { suggestCategory } from '@/lib/suggest'
 import { todayISO } from '@/lib/month'
+import { groupFactor, TRIP_PARTS, tripKindLabel, tripSplit } from '@/lib/trips'
 import { cn } from '@/lib/utils'
-import type { Account, Category, Transaction } from '@/types/database'
+import type { Account, Category, Transaction, Trip, TripPart } from '@/types/database'
 
 type Draft = {
   direction: Transaction['direction']
@@ -24,6 +25,9 @@ type Draft = {
   split: Split
   status: Transaction['status']
   notes: string
+  trip_id: string // '' = not part of a trip
+  trip_part: TripPart | ''
+  for_whole_group: boolean
 }
 
 function toDraft(t: Transaction | null, defaultPayer: string, defaultDate: string): Draft {
@@ -40,6 +44,9 @@ function toDraft(t: Transaction | null, defaultPayer: string, defaultDate: strin
     split: t?.split_type ? { split_type: t.split_type, bearer_member_id: t.bearer_member_id, bearer_pct: t.bearer_pct } : EQUAL_SPLIT,
     status: t?.status ?? 'confirmed',
     notes: t?.notes ?? '',
+    trip_id: t?.trip_id ?? '',
+    trip_part: t?.trip_part ?? '',
+    for_whole_group: t?.for_whole_group ?? false,
   }
 }
 
@@ -53,7 +60,9 @@ export function TransactionDialog({
   transaction,
   accounts,
   categories,
+  trips = [],
   defaultDate,
+  defaultTripId,
   onSaved,
 }: {
   open: boolean
@@ -61,23 +70,50 @@ export function TransactionDialog({
   transaction: Transaction | null
   accounts: Account[]
   categories: Category[]
+  trips?: Trip[]
   defaultDate?: string
+  /** New transactions start linked to this trip (used from a trip's page). */
+  defaultTripId?: string
   onSaved: () => void
 }) {
   const { members, member: me } = useAuth()
-  const [draft, setDraft] = useState<Draft>(() => toDraft(transaction, me?.id ?? '', defaultDate ?? todayISO()))
+  const [draft, setDraft] = useState<Draft>(() => {
+    const d = toDraft(transaction, me?.id ?? '', defaultDate ?? todayISO())
+    if (!transaction && defaultTripId) {
+      d.trip_id = defaultTripId
+      d.category_id = categories.find((c) => c.kind === 'travel' && c.is_active)?.id ?? ''
+      d.categoryTouched = !!d.category_id
+    }
+    return d
+  })
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => ({ ...d, [k]: v }))
   const isNew = transaction === null
 
   const usableAccounts = accounts.filter((a) => a.is_active || a.id === draft.account_id)
   const usableCategories = categories.filter((c) => c.is_active || c.id === draft.category_id)
   const category = categories.find((c) => c.id === draft.category_id) ?? null
+  const trip = trips.find((t) => t.id === draft.trip_id) ?? null
   const suggested = !draft.categoryTouched ? suggestCategory(draft.description, categories) : null
 
   function changeDescription(v: string) {
     setDraft((d) => {
       const next = { ...d, description: v }
       if (!d.categoryTouched) next.category_id = suggestCategory(v, categories)?.id ?? ''
+      return next
+    })
+  }
+
+  function changeTrip(id: string) {
+    setDraft((d) => {
+      const next = { ...d, trip_id: id }
+      if (!id) {
+        next.trip_part = ''
+        next.for_whole_group = false
+      } else if (!d.category_id) {
+        // A trip expense with no category yet: default to the travel category.
+        const travel = categories.find((c) => c.kind === 'travel' && c.is_active)
+        if (travel) next.category_id = travel.id
+      }
       return next
     })
   }
@@ -111,6 +147,9 @@ export function TransactionDialog({
       ...split,
       status: draft.status,
       notes: draft.notes.trim() || null,
+      trip_id: draft.trip_id || null,
+      trip_part: draft.trip_id && draft.trip_part ? draft.trip_part : null,
+      for_whole_group: !!trip && trip.trip_type === 'group' && draft.for_whole_group,
     }
     const { error } = isNew
       ? await supabase.from('transactions').insert(row)
@@ -214,13 +253,62 @@ export function TransactionDialog({
         </NativeSelect>
       </Field>
 
+      {(trips.length > 0 || draft.trip_id) && (
+        <div className="space-y-3 rounded-md border border-border p-3">
+          <Field label="Trip" htmlFor="tx-trip">
+            <NativeSelect id="tx-trip" value={draft.trip_id} onChange={(e) => changeTrip(e.target.value)}>
+              <option value="">Not part of a trip</option>
+              {trips.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({tripKindLabel(t)})
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          {trip && (
+            <>
+              <Field label="What for" htmlFor="tx-part">
+                <NativeSelect id="tx-part" value={draft.trip_part} onChange={(e) => set('trip_part', e.target.value as TripPart | '')}>
+                  <option value="">Choose…</option>
+                  {TRIP_PARTS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              {trip.trip_type === 'group' && (
+                <div className="space-y-1">
+                  <Checkbox
+                    checked={draft.for_whole_group}
+                    onChange={(v) => set('for_whole_group', v)}
+                    label={`Paid for the whole group of ${trip.headcount}`}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {draft.for_whole_group && Number(draft.amount) > 0
+                      ? `Only your part counts: ${Math.round(Number(draft.amount) * groupFactor(trip, true)).toLocaleString('en-IN')} of ${Number(draft.amount).toLocaleString('en-IN')} (2 of ${trip.headcount}). Friends pay back outside Chanda.`
+                      : 'Leave unticked if this was only for the two of you.'}
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3 rounded-md border border-border p-3">
         <Checkbox
           checked={draft.followCategory}
           onChange={(v) => set('followCategory', v)}
-          label={category ? `Use the category's split (${describeSplit(category, members)})` : "Use the category's split"}
+          label={
+            trip
+              ? `Use the trip's split (${describeSplit(tripSplit(trip), members)})`
+              : category
+                ? `Use the category's split (${describeSplit(category, members)})`
+                : "Use the category's split"
+          }
         />
-        {draft.followCategory && category?.monthly_limit != null && (
+        {!trip && draft.followCategory && category?.monthly_limit != null && (
           <p className="text-xs text-muted-foreground">Counts towards this category's monthly limit.</p>
         )}
         {!draft.followCategory && (

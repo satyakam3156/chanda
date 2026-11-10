@@ -60,7 +60,7 @@ export function TransactionsPage() {
     )
   }
   if (!settings.data || !rows) return <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
-  const { accounts, categories } = settings.data
+  const { accounts, categories, trips } = settings.data
 
   return (
     <div className="space-y-4">
@@ -115,7 +115,7 @@ export function TransactionsPage() {
               <Card>
                 <CardContent className="divide-y divide-border p-1">
                   {list.map((t) => (
-                    <TransactionRow key={t.id} t={t} accounts={accounts} categories={categories} onClick={() => setDialog({ t, n: Date.now() })} />
+                    <TransactionRow key={t.id} t={t} accounts={accounts} categories={categories} trips={trips} onClick={() => setDialog({ t, n: Date.now() })} />
                   ))}
                 </CardContent>
               </Card>
@@ -132,6 +132,7 @@ export function TransactionsPage() {
           transaction={dialog.t}
           accounts={accounts}
           categories={categories}
+          trips={trips}
           // New entries default to today in the current month, otherwise the 1st of the month being viewed.
           defaultDate={month === currentMonth() ? todayISO() : `${month}-01`}
           onSaved={reload}

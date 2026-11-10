@@ -18,6 +18,7 @@ import { describeSplit } from '@/lib/split'
 import { monthLabel } from '@/lib/month'
 import { cn, formatINR } from '@/lib/utils'
 import type { Member } from '@/types/database'
+import { EmiChecklist } from './EmiChecklist'
 import { FixedCostChecklist } from './FixedCostChecklist'
 import { SettleSection } from './SettleSection'
 
@@ -50,7 +51,7 @@ export function MonthPage() {
   }
 
   const result = useMemo(() => {
-    if (!settings.data || !txs.rows || !payments.rows) return null
+    if (!settings.data || !txs.rows || !payments.rows || !payments.emiRows) return null
     return computeMonth({
       month,
       members,
@@ -58,10 +59,13 @@ export function MonthPage() {
       transactions: txs.rows,
       fixedCosts: settings.data.fixedCosts,
       payments: payments.rows,
+      trips: settings.data.trips,
+      emiPlans: settings.data.emiPlans,
+      emiPayments: payments.emiRows,
       describe: (s) => describeSplit(s, members),
       formatINR,
     })
-  }, [month, members, settings.data, txs.rows, payments.rows])
+  }, [month, members, settings.data, txs.rows, payments.rows, payments.emiRows])
 
   const settle = useMemo(() => {
     if (!result || !settleData.data) return null
@@ -78,16 +82,16 @@ export function MonthPage() {
     return (
       <p className="text-sm text-destructive">
         Couldn’t load this month: {loadError}. If this mentions a missing table, run{' '}
-        <code>0004_fixed_cost_payments.sql</code> and <code>0005_settlements.sql</code> in Supabase.
+        the latest file in <code>supabase/migrations/</code> in Supabase.
       </p>
     )
   }
   if (!result || !settle || !settleData.data || !me) return <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
 
-  const unticked = result.fixedDue.filter((f) => !f.payment).length
+  const unticked = result.fixedDue.filter((f) => !f.payment).length + result.emiDue.filter((e) => !e.payment).length
   const closeWarnings = [
     result.pendingReview > 0 && `${result.pendingReview} inbox item(s) aren't counted. Review them first if they belong to ${monthLabel(month)}.`,
-    unticked > 0 && `${unticked} fixed cost(s) not ticked, so not counted.`,
+    unticked > 0 && `${unticked} fixed cost(s) or EMI(s) not ticked, so not counted.`,
   ].filter((w): w is string => !!w)
 
   return (
@@ -120,7 +124,7 @@ export function MonthPage() {
           )}
           {unticked > 0 && (
             <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-              {unticked} fixed cost{unticked > 1 ? 's' : ''} not marked paid yet, so not in the balance.
+              {unticked} fixed cost{unticked > 1 ? 's' : ''} or EMI{unticked > 1 ? 's' : ''} not marked paid yet, so not in the balance.
             </p>
           )}
         </div>
@@ -154,6 +158,8 @@ export function MonthPage() {
       )}
 
       <FixedCostChecklist month={month} items={result.fixedDue} onChanged={payments.reload} />
+
+      <EmiChecklist month={month} items={result.emiDue} trips={settings.data!.trips} onChanged={payments.reload} />
 
       <SettleSection
         month={month}
@@ -232,7 +238,7 @@ function Breakdown({ lines, members, me, view }: { lines: Line[]; members: Membe
                   <span className="block truncate text-sm font-medium">{l.label}</span>
                   <span className="block truncate text-xs text-muted-foreground">
                     {l.detail}
-                    {l.kind !== 'fixed' && ` · ${l.count} transaction${l.count === 1 ? '' : 's'}`}
+                    {l.kind !== 'fixed' && l.kind !== 'emi' && ` · ${l.count} transaction${l.count === 1 ? '' : 's'}`}
                   </span>
                 </span>
                 <span className="shrink-0 text-sm font-semibold tabular-nums">{formatINR(l.total)}</span>

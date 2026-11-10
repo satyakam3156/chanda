@@ -5,11 +5,12 @@ import { ThemeProvider } from '@/context/ThemeProvider'
 import { AppShell } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
 import { Login } from '@/pages/Login'
-import { Placeholder } from '@/pages/Placeholder'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { InboxPage } from '@/pages/InboxPage'
 import { MonthPage } from '@/pages/month/MonthPage'
 import { TransactionsPage } from '@/pages/TransactionsPage'
+import { TripDetailPage } from '@/pages/trips/TripDetailPage'
+import { TripsPage } from '@/pages/trips/TripsPage'
 
 function FullScreenMessage({ children }: { children: ReactNode }) {
   return (
@@ -46,16 +47,8 @@ function Gate() {
         <Route path="/" element={<MonthPage />} />
         <Route path="/inbox" element={<InboxPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
-        <Route
-          path="/trips"
-          element={
-            <Placeholder
-              step={6}
-              title="Trips and EMIs"
-              points={['Couple or group trips, with headcount', 'Trip total and category breakdown', 'EMI instalments, paid or unpaid']}
-            />
-          }
-        />
+        <Route path="/trips" element={<TripsPage />} />
+        <Route path="/trips/:id" element={<TripDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

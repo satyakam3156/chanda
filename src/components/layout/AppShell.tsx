@@ -23,7 +23,7 @@ export function AppShell() {
   const { member, signOut } = useAuth()
   const { pathname } = useLocation()
   const outlet = useOutlet()
-  const title = NAV.find((n) => n.to === pathname)?.label ?? 'Chanda'
+  const title = NAV.find((n) => n.to === pathname || (n.to !== '/' && pathname.startsWith(n.to + '/')))?.label ?? 'Chanda'
 
   return (
     <div className="min-h-full">

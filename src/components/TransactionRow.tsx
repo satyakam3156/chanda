@@ -1,27 +1,33 @@
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/AuthProvider'
 import { describeSplit } from '@/lib/split'
+import { tripSplit } from '@/lib/trips'
 import { cn, formatINR } from '@/lib/utils'
-import type { Account, Category, Transaction } from '@/types/database'
+import type { Account, Category, Transaction, Trip } from '@/types/database'
 
 export function TransactionRow({
   t,
   accounts,
   categories,
+  trips = [],
   onClick,
 }: {
   t: Transaction
   accounts: Account[]
   categories: Category[]
+  trips?: Trip[]
   onClick: () => void
 }) {
   const { members } = useAuth()
   const account = accounts.find((a) => a.id === t.account_id)
   const category = categories.find((c) => c.id === t.category_id)
+  const trip = trips.find((x) => x.id === t.trip_id)
   const payer = members.find((m) => m.id === t.paid_by_member_id)?.display_name
   const split = t.split_type
     ? describeSplit({ split_type: t.split_type, bearer_member_id: t.bearer_member_id, bearer_pct: t.bearer_pct }, members)
-    : category
+    : trip
+      ? describeSplit(tripSplit(trip), members) + (t.for_whole_group ? ` · whole group (2 of ${trip.headcount})` : '')
+      : category
       ? describeSplit(category, members) + (category.monthly_limit != null ? ' (limit applies)' : '')
       : null
 
@@ -42,7 +48,7 @@ export function TransactionRow({
           {t.status === 'ignored' && <Badge variant="secondary">Ignored</Badge>}
         </span>
         <span className="block truncate text-xs text-muted-foreground">
-          {[category?.name ?? 'No category', account?.name ?? 'Cash / other', payer && `${credit ? 'to' : 'by'} ${payer}`, split]
+          {[trip ? `Trip: ${trip.name}` : (category?.name ?? 'No category'), account?.name ?? 'Cash / other', payer && `${credit ? 'to' : 'by'} ${payer}`, split]
             .filter(Boolean)
             .join(' · ')}
         </span>

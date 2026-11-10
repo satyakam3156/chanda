@@ -13,6 +13,8 @@ type TableDef<R, Opt extends keyof R> = {
 
 export type SplitType = 'equal' | 'payer' | 'member' | 'custom'
 
+export type TripPart = 'travel' | 'stay' | 'food' | 'local' | 'activities' | 'shopping' | 'other'
+
 export type Member = {
   id: string
   email: string
@@ -84,6 +86,9 @@ export type Transaction = {
   source_ref: string | null
   raw: Json | null
   notes: string | null
+  trip_id: string | null
+  trip_part: TripPart | null
+  for_whole_group: boolean
   created_by: string | null
   created_at: string
   updated_at: string
@@ -130,6 +135,51 @@ export type MonthClose = {
   closed_at: string
 }
 
+export type Trip = {
+  id: string
+  name: string
+  start_date: string
+  end_date: string | null
+  trip_type: 'couple' | 'group'
+  headcount: number
+  split_type: SplitType
+  bearer_member_id: string | null
+  bearer_pct: number | null
+  notes: string | null
+  created_at: string
+}
+
+export type EmiPlan = {
+  id: string
+  name: string
+  category_id: string
+  trip_id: string | null
+  trip_part: TripPart | null
+  for_whole_group: boolean
+  account_id: string | null
+  source_transaction_id: string | null
+  instalment_amount: number
+  instalments: number
+  first_month: string
+  paid_by_member_id: string
+  split_type: SplitType | null
+  bearer_member_id: string | null
+  bearer_pct: number | null
+  notes: string | null
+  created_at: string
+}
+
+export type EmiPayment = {
+  id: string
+  plan_id: string
+  seq: number
+  month: string
+  amount: number
+  paid_on: string | null
+  created_by: string | null
+  created_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -169,11 +219,30 @@ export type Database = {
         | 'source_ref'
         | 'raw'
         | 'notes'
+        | 'trip_id'
+        | 'trip_part'
+        | 'for_whole_group'
         | 'created_by'
         | 'created_at'
         | 'updated_at'
       >
       fixed_cost_payments: TableDef<FixedCostPayment, 'id' | 'paid_on' | 'bearer_member_id' | 'bearer_pct' | 'created_by' | 'created_at'>
+      trips: TableDef<Trip, 'id' | 'end_date' | 'trip_type' | 'headcount' | 'split_type' | 'bearer_member_id' | 'bearer_pct' | 'notes' | 'created_at'>
+      emi_plans: TableDef<
+        EmiPlan,
+        | 'id'
+        | 'trip_id'
+        | 'trip_part'
+        | 'for_whole_group'
+        | 'account_id'
+        | 'source_transaction_id'
+        | 'split_type'
+        | 'bearer_member_id'
+        | 'bearer_pct'
+        | 'notes'
+        | 'created_at'
+      >
+      emi_payments: TableDef<EmiPayment, 'id' | 'paid_on' | 'created_by' | 'created_at'>
       settlements: TableDef<Settlement, 'id' | 'method' | 'note' | 'transaction_id' | 'created_by' | 'created_at'>
       month_closes: TableDef<
         MonthClose,

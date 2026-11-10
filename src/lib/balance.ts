@@ -8,11 +8,12 @@
  * A person's balance is paid − share. Positive means the other person owes them.
  */
 import type { Split } from '@/lib/split'
-import type { Category, FixedCost, FixedCostPayment, Member, Transaction } from '@/types/database'
+import { emiSeqInMonth, groupFactor, tripKindLabel, tripSplit } from '@/lib/trips'
+import type { Category, EmiPayment, EmiPlan, FixedCost, FixedCostPayment, Member, Transaction, Trip } from '@/types/database'
 
 export type Amounts = Record<string, number>
 
-export type LineKind = 'category' | 'limit_under' | 'limit_over' | 'custom' | 'fixed'
+export type LineKind = 'category' | 'limit_under' | 'limit_over' | 'custom' | 'fixed' | 'trip' | 'emi'
 
 export type Line = {
   key: string
@@ -30,6 +31,8 @@ export type LimitStatus = { category: Category; spent: number; limit: number }
 
 export type FixedDue = { fixedCost: FixedCost; payment: FixedCostPayment | null }
 
+export type EmiDue = { plan: EmiPlan; seq: number; payment: EmiPayment | null }
+
 export type MonthResult = {
   lines: Line[]
   paid: Amounts
@@ -40,6 +43,7 @@ export type MonthResult = {
   net: { from: Member; to: Member; amount: number } | null
   limits: LimitStatus[]
   fixedDue: FixedDue[]
+  emiDue: EmiDue[]
   /** Confirmed transactions without a category can't exist (DB check), but inbox items are reported. */
   pendingReview: number
 }
@@ -103,13 +107,22 @@ export function computeMonth(input: {
   transactions: Transaction[]
   fixedCosts: FixedCost[]
   payments: FixedCostPayment[]
+  trips?: Trip[]
+  emiPlans?: EmiPlan[]
+  /** EMI instalments ticked for this month. */
+  emiPayments?: EmiPayment[]
   describe: (s: Split) => string
   formatINR: (n: number) => string
 }): MonthResult {
   const { month, members, categories, transactions, fixedCosts, payments, describe, formatINR } = input
+  const trips = input.trips ?? []
+  const emiPlans = input.emiPlans ?? []
+  const emiPayments = input.emiPayments ?? []
   const lines: Line[] = []
   const limits: LimitStatus[] = []
-  const confirmed = transactions.filter((t) => t.status === 'confirmed' && t.category_id)
+  const confirmedAll = transactions.filter((t) => t.status === 'confirmed' && t.category_id)
+  // Trip transactions are counted per trip (below), not under their category.
+  const confirmed = confirmedAll.filter((t) => !t.trip_id)
 
   for (const cat of categories) {
     const txs = confirmed.filter((t) => t.category_id === cat.id)
@@ -168,6 +181,44 @@ export function computeMonth(input: {
     }
   }
 
+  // Trips: each trip's transactions this month, scaled for whole-group bills, using the trip's split.
+  for (const trip of trips) {
+    const txs = confirmedAll.filter((t) => t.trip_id === trip.id)
+    if (txs.length === 0) continue
+    const line = newLine(`trip:${trip.id}`, 'trip', `Trip: ${trip.name}`, `${tripKindLabel(trip)} · ${describe(tripSplit(trip))}`, members)
+    for (const t of txs) {
+      const amt = signed(t) * groupFactor(trip, t.for_whole_group)
+      const split: Split = t.split_type ? { split_type: t.split_type, bearer_member_id: t.bearer_member_id, bearer_pct: t.bearer_pct } : tripSplit(trip)
+      addTx(line, amt, t.paid_by_member_id, shareOf(split, amt, t.paid_by_member_id, members))
+    }
+    line.count = txs.length
+    lines.push(line)
+  }
+
+  // EMIs: an instalment is listed when due this month, and counted once ticked.
+  const emiDue: EmiDue[] = []
+  for (const plan of emiPlans) {
+    const payment = emiPayments.find((p) => p.plan_id === plan.id) ?? null
+    const seq = payment?.seq ?? emiSeqInMonth(plan, month)
+    if (seq == null) continue
+    emiDue.push({ plan, seq, payment })
+    if (!payment) continue
+    const trip = trips.find((t) => t.id === plan.trip_id)
+    const category = categories.find((c) => c.id === plan.category_id)
+    const split: Split = plan.split_type
+      ? { split_type: plan.split_type, bearer_member_id: plan.bearer_member_id, bearer_pct: plan.bearer_pct }
+      : trip
+        ? tripSplit(trip)
+        : category
+          ? splitOfCategory(category)
+          : { split_type: 'equal', bearer_member_id: null, bearer_pct: null }
+    const amt = Number(payment.amount) * groupFactor(trip, plan.for_whole_group)
+    const line = newLine(`emi:${plan.id}`, 'emi', `EMI: ${plan.name}`, `instalment ${seq} of ${plan.instalments} · ${describe(split)}`, members)
+    addTx(line, amt, plan.paid_by_member_id, shareOf(split, amt, plan.paid_by_member_id, members))
+    line.count = 1
+    lines.push(line)
+  }
+
   // Fixed costs: listed when due this month (or already ticked), counted only once ticked.
   const fixedDue: FixedDue[] = []
   for (const f of fixedCosts) {
@@ -208,6 +259,7 @@ export function computeMonth(input: {
     net,
     limits,
     fixedDue,
+    emiDue,
     pendingReview: transactions.filter((t) => t.status === 'needs_review').length,
   }
 }

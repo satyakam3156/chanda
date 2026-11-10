@@ -22,7 +22,7 @@ export function InboxPage() {
   const loadError = settings.error ?? error
   if (loadError) return <p className="text-sm text-destructive">Couldn’t load the inbox: {loadError}</p>
   if (!settings.data || !rows) return <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
-  const { accounts, categories } = settings.data
+  const { accounts, categories, trips } = settings.data
 
   return (
     <div className="space-y-4">
@@ -50,6 +50,7 @@ export function InboxPage() {
           transaction={dialog.t}
           accounts={accounts}
           categories={categories}
+          trips={trips}
           onSaved={reload}
         />
       )}
