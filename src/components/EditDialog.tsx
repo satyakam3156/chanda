@@ -15,6 +15,7 @@ export function EditDialog({
   description,
   onSave,
   onDelete,
+  saveLabel = 'Save',
   children,
 }: {
   open: boolean
@@ -23,6 +24,7 @@ export function EditDialog({
   description?: string
   onSave: () => Promise<string | null>
   onDelete?: () => Promise<string | null>
+  saveLabel?: string
   children: ReactNode
 }) {
   const [busy, setBusy] = useState(false)
@@ -75,7 +77,7 @@ export function EditDialog({
               <span />
             )}
             <Button type="submit" disabled={busy}>
-              {busy ? 'Saving…' : 'Save'}
+              {busy ? 'Saving…' : saveLabel}
             </Button>
           </DialogFooter>
         </form>

@@ -5,15 +5,21 @@ import { SectionCard } from '@/components/forms'
 import { MonthSwitcher } from '@/components/MonthSwitcher'
 import { useAuth } from '@/context/AuthProvider'
 import { usePayments } from '@/data/usePayments'
+import { useSettle } from '@/data/useSettle'
 import { useSettings } from '@/data/useSettings'
 import { useTransactions } from '@/data/useTransactions'
+import { useDebtText } from '@/hooks/useDebtText'
 import { useSelectedMonth } from '@/hooks/useSelectedMonth'
 import { computeMonth } from '@/lib/balance'
 import type { Line, MonthResult } from '@/lib/balance'
+import { closeToCarry, computeSettle } from '@/lib/settle'
+import type { SettleResult } from '@/lib/settle'
 import { describeSplit } from '@/lib/split'
+import { monthLabel } from '@/lib/month'
 import { cn, formatINR } from '@/lib/utils'
 import type { Member } from '@/types/database'
 import { FixedCostChecklist } from './FixedCostChecklist'
+import { SettleSection } from './SettleSection'
 
 type View = 'both' | 'me'
 
@@ -32,6 +38,7 @@ export function MonthPage() {
   const settings = useSettings()
   const txs = useTransactions({ month })
   const payments = usePayments(month)
+  const settleData = useSettle(month)
 
   function setView(v: View) {
     setViewState(v)
@@ -56,19 +63,32 @@ export function MonthPage() {
     })
   }, [month, members, settings.data, txs.rows, payments.rows])
 
-  const loadError = settings.error ?? txs.error ?? payments.error
+  const settle = useMemo(() => {
+    if (!result || !settleData.data) return null
+    return computeSettle({
+      ownBalance: result.balance,
+      carryIn: closeToCarry(settleData.data.prevClose, members),
+      settlements: settleData.data.settlements,
+      members,
+    })
+  }, [result, settleData.data, members])
+
+  const loadError = settings.error ?? txs.error ?? payments.error ?? settleData.error
   if (loadError) {
     return (
       <p className="text-sm text-destructive">
         Couldn’t load this month: {loadError}. If this mentions a missing table, run{' '}
-        <code>supabase/migrations/0004_fixed_cost_payments.sql</code> in Supabase.
+        <code>0004_fixed_cost_payments.sql</code> and <code>0005_settlements.sql</code> in Supabase.
       </p>
     )
   }
-  if (!result || !me) return <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
+  if (!result || !settle || !settleData.data || !me) return <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
 
-  const other = members.find((m) => m.id !== me.id)!
   const unticked = result.fixedDue.filter((f) => !f.payment).length
+  const closeWarnings = [
+    result.pendingReview > 0 && `${result.pendingReview} inbox item(s) aren't counted. Review them first if they belong to ${monthLabel(month)}.`,
+    unticked > 0 && `${unticked} fixed cost(s) not ticked, so not counted.`,
+  ].filter((w): w is string => !!w)
 
   return (
     <div className="space-y-4">
@@ -89,7 +109,7 @@ export function MonthPage() {
         </div>
       </div>
 
-      <NetCard result={result} members={members} me={me} other={other} view={view} />
+      <NetCard result={result} settle={settle} members={members} me={me} view={view} />
 
       {(result.pendingReview > 0 || unticked > 0) && (
         <div className="space-y-2 text-sm">
@@ -135,32 +155,46 @@ export function MonthPage() {
 
       <FixedCostChecklist month={month} items={result.fixedDue} onChanged={payments.reload} />
 
+      <SettleSection
+        month={month}
+        settle={settle}
+        settlements={settleData.data.settlements}
+        close={settleData.data.close}
+        prevClosed={!!settleData.data.prevClose}
+        prevOpenWithActivity={settleData.data.prevOpenWithActivity}
+        nextClosed={!!settleData.data.nextClose}
+        warnings={closeWarnings}
+        mine={view === 'me'}
+        onChanged={settleData.reload}
+      />
+
       <Breakdown lines={result.lines} members={members} me={me} view={view} />
     </div>
   )
 }
 
-function NetCard({ result, members, me, other, view }: { result: MonthResult; members: Member[]; me: Member; other: Member; view: View }) {
-  const net = result.net
-  let headline: string
-  if (!net) headline = 'All even this month'
-  else if (view === 'me') headline = net.to.id === me.id ? `${other.display_name} owes you` : `You owe ${other.display_name}`
-  else headline = `${net.from.display_name} owes ${net.to.display_name}`
-
-  const people = view === 'me' ? [me] : members
+function NetCard({ result, settle, members, me, view }: { result: MonthResult; settle: SettleResult; members: Member[]; me: Member; view: View }) {
+  const debtText = useDebtText()
+  const remaining = settle.remaining
+  const mine = view === 'me'
+  // Headline: what's still owed after carry-over and settle-ups.
+  const headline = remaining ? debtText(remaining, mine, false) : 'All settled'
+  const people = mine ? [me] : members
 
   return (
     <Card>
       <CardContent className="space-y-4 p-5">
         <div>
           <p className="text-sm text-muted-foreground">{headline}</p>
-          <p className="text-3xl font-bold tabular-nums">{formatINR(net?.amount ?? 0)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Before settle-ups and carry-over (step 5).</p>
+          <p className="text-3xl font-bold tabular-nums">{formatINR(remaining?.amount ?? 0)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Includes carry-over and settle-ups. This month’s spending alone: {settle.own ? debtText(settle.own, mine) : 'even'}.
+          </p>
         </div>
         <div className="space-y-2 border-t border-border pt-3 text-sm">
           {people.map((m) => {
             const bal = result.balance[m.id]
-            const name = view === 'me' ? 'You' : m.display_name
+            const name = mine ? 'You' : m.display_name
             return (
               <div key={m.id} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5">
                 <span>
@@ -175,7 +209,7 @@ function NetCard({ result, members, me, other, view }: { result: MonthResult; me
             )
           })}
           <p className="text-xs text-muted-foreground">
-            Paid more than your share → you’re owed the difference. Paid less → you owe it.
+            This month’s spending: paid more than your share → you’re owed the difference. Paid less → you owe it.
           </p>
         </div>
       </CardContent>

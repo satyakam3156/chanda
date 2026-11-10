@@ -11,3 +11,4 @@ Same stack as Munshi: Vite + React + TypeScript + Tailwind + shadcn/Radix + Supa
 - Step 2 (settings): [docs/STEP2-SETTINGS.md](docs/STEP2-SETTINGS.md)
 - Step 3 (transactions): [docs/STEP3-TRANSACTIONS.md](docs/STEP3-TRANSACTIONS.md)
 - Step 4 (month): [docs/STEP4-MONTH.md](docs/STEP4-MONTH.md)
+- Step 5 (settle up): [docs/STEP5-SETTLE-UP.md](docs/STEP5-SETTLE-UP.md)

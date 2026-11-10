@@ -103,6 +103,33 @@ export type FixedCostPayment = {
   created_at: string
 }
 
+export type Settlement = {
+  id: string
+  month: string
+  from_member_id: string
+  to_member_id: string
+  amount: number
+  paid_on: string
+  method: 'upi' | 'bank' | 'cash' | 'other'
+  note: string | null
+  transaction_id: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export type MonthClose = {
+  month: string
+  own_from_member_id: string | null
+  own_amount: number
+  carry_in_from_member_id: string | null
+  carry_in_amount: number
+  settled_amount: number
+  carry_out_from_member_id: string | null
+  carry_out_amount: number
+  closed_by: string | null
+  closed_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -147,6 +174,19 @@ export type Database = {
         | 'updated_at'
       >
       fixed_cost_payments: TableDef<FixedCostPayment, 'id' | 'paid_on' | 'bearer_member_id' | 'bearer_pct' | 'created_by' | 'created_at'>
+      settlements: TableDef<Settlement, 'id' | 'method' | 'note' | 'transaction_id' | 'created_by' | 'created_at'>
+      month_closes: TableDef<
+        MonthClose,
+        | 'own_from_member_id'
+        | 'own_amount'
+        | 'carry_in_from_member_id'
+        | 'carry_in_amount'
+        | 'settled_amount'
+        | 'carry_out_from_member_id'
+        | 'carry_out_amount'
+        | 'closed_by'
+        | 'closed_at'
+      >
     }
     Views: { [_ in never]: never }
     Functions: {
