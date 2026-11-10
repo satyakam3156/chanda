@@ -8,6 +8,7 @@ import { Login } from '@/pages/Login'
 import { Placeholder } from '@/pages/Placeholder'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { InboxPage } from '@/pages/InboxPage'
+import { MonthPage } from '@/pages/month/MonthPage'
 import { TransactionsPage } from '@/pages/TransactionsPage'
 
 function FullScreenMessage({ children }: { children: ReactNode }) {
@@ -42,21 +43,7 @@ function Gate() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route
-          path="/"
-          element={
-            <Placeholder
-              step={4}
-              title="This month"
-              points={[
-                'Net balance: who owes whom, line by line',
-                'Food delivery against the monthly limit',
-                'Fixed costs checklist: "Yes, we paid it"',
-                'My view: only my share',
-              ]}
-            />
-          }
-        />
+        <Route path="/" element={<MonthPage />} />
         <Route path="/inbox" element={<InboxPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route

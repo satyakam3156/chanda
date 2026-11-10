@@ -89,6 +89,20 @@ export type Transaction = {
   updated_at: string
 }
 
+export type FixedCostPayment = {
+  id: string
+  fixed_cost_id: string
+  month: string
+  amount: number
+  paid_by_member_id: string
+  paid_on: string | null
+  split_type: SplitType
+  bearer_member_id: string | null
+  bearer_pct: number | null
+  created_by: string | null
+  created_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -132,6 +146,7 @@ export type Database = {
         | 'created_at'
         | 'updated_at'
       >
+      fixed_cost_payments: TableDef<FixedCostPayment, 'id' | 'paid_on' | 'bearer_member_id' | 'bearer_pct' | 'created_by' | 'created_at'>
     }
     Views: { [_ in never]: never }
     Functions: {
