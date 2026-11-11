@@ -18,6 +18,7 @@ import { describeSplit } from '@/lib/split'
 import { monthLabel } from '@/lib/month'
 import { cn, formatINR } from '@/lib/utils'
 import type { Member } from '@/types/database'
+import { CardBillsSection } from './CardBillsSection'
 import { EmiChecklist } from './EmiChecklist'
 import { FixedCostChecklist } from './FixedCostChecklist'
 import { SettleSection } from './SettleSection'
@@ -156,6 +157,17 @@ export function MonthPage() {
           </div>
         </SectionCard>
       )}
+
+      <CardBillsSection
+        month={month}
+        members={members}
+        me={me}
+        mine={view === 'me'}
+        accounts={settings.data!.accounts}
+        categories={settings.data!.categories}
+        trips={settings.data!.trips}
+        emiPlans={settings.data!.emiPlans}
+      />
 
       <FixedCostChecklist month={month} items={result.fixedDue} onChanged={payments.reload} />
 

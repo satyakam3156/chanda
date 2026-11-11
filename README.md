@@ -14,3 +14,4 @@ Same stack as Munshi: Vite + React + TypeScript + Tailwind + shadcn/Radix + Supa
 - Step 5 (settle up): [docs/STEP5-SETTLE-UP.md](docs/STEP5-SETTLE-UP.md)
 - Step 6 (trips and EMIs): [docs/STEP6-TRIPS-EMIS.md](docs/STEP6-TRIPS-EMIS.md)
 - Step 7 (bank emails): [docs/STEP7-BANK-EMAILS.md](docs/STEP7-BANK-EMAILS.md)
+- Step 8 (card bills): [docs/STEP8-CARD-BILLS.md](docs/STEP8-CARD-BILLS.md)

@@ -46,6 +46,11 @@ export type MonthResult = {
   emiDue: EmiDue[]
   /** Confirmed transactions without a category can't exist (DB check), but inbox items are reported. */
   pendingReview: number
+  /**
+   * Each counted item's share per person, keyed "tx:<id>" or "emi:<plan id>".
+   * Used to work out each card bill's shares (step 8).
+   */
+  itemShares: Record<string, Amounts>
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -120,6 +125,11 @@ export function computeMonth(input: {
   const emiPayments = input.emiPayments ?? []
   const lines: Line[] = []
   const limits: LimitStatus[] = []
+  const itemShares: Record<string, Amounts> = {}
+  const note = (key: string, shares: Amounts) => {
+    itemShares[key] ??= zero(members)
+    addInto(itemShares[key], shares)
+  }
   const confirmedAll = transactions.filter((t) => t.status === 'confirmed' && t.category_id)
   // Trip transactions are counted per trip (below), not under their category.
   const confirmed = confirmedAll.filter((t) => !t.trip_id)
@@ -151,8 +161,14 @@ export function computeMonth(input: {
           const amt = signed(t)
           const u = amt * fracUnder
           const o = amt - u
-          addTx(underLine, u, t.paid_by_member_id, shareOf(splitOfCategory(cat), u, t.paid_by_member_id, members))
-          if (over > 0) addTx(overLine, o, t.paid_by_member_id, shareOf(overSplitOfCategory(cat), o, t.paid_by_member_id, members))
+          const uShare = shareOf(splitOfCategory(cat), u, t.paid_by_member_id, members)
+          addTx(underLine, u, t.paid_by_member_id, uShare)
+          note(`tx:${t.id}`, uShare)
+          if (over > 0) {
+            const oShare = shareOf(overSplitOfCategory(cat), o, t.paid_by_member_id, members)
+            addTx(overLine, o, t.paid_by_member_id, oShare)
+            note(`tx:${t.id}`, oShare)
+          }
         }
         underLine.count = following.length
         lines.push(underLine)
@@ -163,7 +179,9 @@ export function computeMonth(input: {
       } else {
         const line = newLine(cat.id, 'category', cat.name, describe(splitOfCategory(cat)), members)
         for (const t of following) {
-          addTx(line, signed(t), t.paid_by_member_id, shareOf(splitOfCategory(cat), signed(t), t.paid_by_member_id, members))
+          const sh = shareOf(splitOfCategory(cat), signed(t), t.paid_by_member_id, members)
+          addTx(line, signed(t), t.paid_by_member_id, sh)
+          note(`tx:${t.id}`, sh)
         }
         line.count = following.length
         lines.push(line)
@@ -174,7 +192,9 @@ export function computeMonth(input: {
       const line = newLine(`${cat.id}:custom`, 'custom', cat.name, 'own split per transaction', members)
       for (const t of custom) {
         const split: Split = { split_type: t.split_type!, bearer_member_id: t.bearer_member_id, bearer_pct: t.bearer_pct }
-        addTx(line, signed(t), t.paid_by_member_id, shareOf(split, signed(t), t.paid_by_member_id, members))
+        const sh = shareOf(split, signed(t), t.paid_by_member_id, members)
+        addTx(line, signed(t), t.paid_by_member_id, sh)
+        note(`tx:${t.id}`, sh)
       }
       line.count = custom.length
       lines.push(line)
@@ -189,7 +209,9 @@ export function computeMonth(input: {
     for (const t of txs) {
       const amt = signed(t) * groupFactor(trip, t.for_whole_group)
       const split: Split = t.split_type ? { split_type: t.split_type, bearer_member_id: t.bearer_member_id, bearer_pct: t.bearer_pct } : tripSplit(trip)
-      addTx(line, amt, t.paid_by_member_id, shareOf(split, amt, t.paid_by_member_id, members))
+      const sh = shareOf(split, amt, t.paid_by_member_id, members)
+      addTx(line, amt, t.paid_by_member_id, sh)
+      note(`tx:${t.id}`, sh)
     }
     line.count = txs.length
     lines.push(line)
@@ -214,7 +236,9 @@ export function computeMonth(input: {
           : { split_type: 'equal', bearer_member_id: null, bearer_pct: null }
     const amt = Number(payment.amount) * groupFactor(trip, plan.for_whole_group)
     const line = newLine(`emi:${plan.id}`, 'emi', `EMI: ${plan.name}`, `instalment ${seq} of ${plan.instalments} · ${describe(split)}`, members)
-    addTx(line, amt, plan.paid_by_member_id, shareOf(split, amt, plan.paid_by_member_id, members))
+    const emiShare = shareOf(split, amt, plan.paid_by_member_id, members)
+    addTx(line, amt, plan.paid_by_member_id, emiShare)
+    note(`emi:${plan.id}`, emiShare)
     line.count = 1
     lines.push(line)
   }
@@ -261,6 +285,7 @@ export function computeMonth(input: {
     fixedDue,
     emiDue,
     pendingReview: transactions.filter((t) => t.status === 'needs_review').length,
+    itemShares,
   }
 }
 
