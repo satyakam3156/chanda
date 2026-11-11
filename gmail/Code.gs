@@ -83,11 +83,11 @@ function importSince_(window) {
 
 /**
  * Run by hand when Chanda lists emails it "couldn't read": logs the plain text the
- * script sees for those emails (last `days`, default 7), with numbers that could be
+ * script sees for those emails (last `days`, default 31), with numbers that could be
  * card/account/phone digits masked. Nothing is sent anywhere. Copy the log to Claude.
  */
 function showUnreadable(days) {
-  var query = '(' + BANK_SENDERS.map(function (d) { return 'from:' + d; }).join(' OR ') + ') newer_than:' + (days || 7) + 'd';
+  var query = '(' + BANK_SENDERS.map(function (d) { return 'from:' + d; }).join(' OR ') + ') newer_than:' + (days || 31) + 'd';
   GmailApp.search(query, 0, 100).forEach(function (thread) {
     thread.getMessages().forEach(function (msg) {
       var parsed = parseAlert(msg.getFrom(), msg.getSubject(), msg.getPlainBody());

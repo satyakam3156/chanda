@@ -221,6 +221,20 @@ Date & Time:
     expect: { kind: 'account_credit', amount: 5000, occurred_on: '2026-11-01', counterparty: 'SOME EMPLOYER', via: 'NEFT' },
   },
   {
+    name: 'ICICI declined transaction is skipped',
+    sender: 'credit_cards@icici.bank.in',
+    subject: 'Transaction alert for your ICICI Bank Credit Card',
+    body: 'As the service for international online transactions is disabled, your\ntransaction of INR 399.00 using your ICICI Bank Credit Card XX1111, has\nbeen declined on Nov 11, 2026 at 05:10:54.',
+    expect: { kind: 'skip' },
+  },
+  {
+    name: 'HDFC "verify a declined transaction" is skipped',
+    sender: 'alerts@hdfcbank.bank.in',
+    subject: 'Urgent: Verify Your Recent UPI Transaction with HDFC Bank',
+    body: 'We tried reaching you to verify and confirm a recent declined transaction. Amount: Rs.7000',
+    expect: { kind: 'skip' },
+  },
+  {
     name: 'Unknown bank format is reported, not guessed',
     sender: 'alerts@axis.bank.in',
     subject: 'Refund processed on your credit card',

@@ -55,6 +55,9 @@ function isSkippable_(subject, body) {
     /\bstatement\b/.test(subj) ||
     /important update|update on applicable charges|missed call|upcoming payment notification/.test(subj) ||
     /emi letter|no dues|reminder|your say|action needed|\bloan\b|credit card ending .* - /.test(subj) ||
+    // Declined payments, and the bank's "verify this declined transaction" follow-ups:
+    // no money moved.
+    /has been declined|\bdeclined transaction|verify your recent .*transaction/.test(s) ||
     // Card auto-debits: the card's own spend alert already covers the charge.
     /standing instruction/.test(subj) ||
     /payment received on your icici bank credit card/.test(s) ||
