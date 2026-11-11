@@ -18,7 +18,14 @@
 var MONTHS_ = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
 function flat_(s) {
-  return String(s || '').replace(/\s+/g, ' ').trim();
+  // Gmail's plain-text version can carry things a printout doesn't show: invisible
+  // characters, *bold* markers and <link> addresses. Drop them before matching.
+  return String(s || '')
+    .replace(/[\u200b-\u200f\u2060\ufeff]/g, '')
+    .replace(/<https?:[^>]*>/g, ' ')
+    .replace(/(^|[\s(])\*+|\*+(?=[\s.,:;)]|$)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function amount_(s) {
@@ -47,6 +54,7 @@ function isSkippable_(subject, body) {
     // Account notices: statements, charges, reminders.
     /\bstatement\b/.test(subj) ||
     /important update|update on applicable charges|missed call|upcoming payment notification/.test(subj) ||
+    /emi letter|no dues|reminder|your say|action needed|\bloan\b|credit card ending .* - /.test(subj) ||
     // Card auto-debits: the card's own spend alert already covers the charge.
     /standing instruction/.test(subj) ||
     /payment received on your icici bank credit card/.test(s) ||
@@ -63,7 +71,7 @@ function isSkippable_(subject, body) {
 //  Nov 04, 2026 at 07:48:08. Info: Swiggy. The Available Credit Limit…"
 function parseIcici_(subject, body) {
   var t = flat_(body);
-  var m = t.match(/Credit Card XX(\d{4}) has been used for a transaction of INR ([\d,]+(?:\.\d{1,2})?) on ([A-Za-z]{3}) ?(\d{1,2}), (\d{4})(?: at [\d:]+)?\. Info: (.+?)\. (?:The Available|Available)/);
+  var m = t.match(/Credit Card\s*XX(\d{4})\s*has been used for a transaction of\s*INR\s*([\d,]+(?:\.\d{1,2})?)\s*on\s*([A-Za-z]{3})[a-z]*\.?\s*(\d{1,2}),?\s*(\d{4})(?:\s*at\s*[\d:]+)?\s*\.?\s*Info:\s*(.+?)\.?\s*(?:The Available|Available Credit|In case you have not|$)/i);
   if (m) {
     return {
       kind: 'card_spend',
@@ -78,21 +86,32 @@ function parseIcici_(subject, body) {
 }
 
 // Axis card -----------------------------------------------------------------------
-// Fields: "Transaction Amount: INR 970  Merchant Name: AIRTEL PAYM
-//          Axis Bank Credit Card No. XX2222  Date & Time: 08-11-2026, 16:40:23 IST"
+// Two layouts, both verified:
+//   "Transaction Amount: INR 970  Merchant Name: AIRTEL PAYM
+//    Axis Bank Credit Card No. XX2222  Date & Time: 08-11-2026, 16:40:23 IST"
+//   "Transaction amount (INR): INR 51802  Merchant name: SOME AIRLINE
+//    Axis Bank Credit Card No.: XX2222  Date and time: 16-10-2026 18:17:57 IST"
+// Spends in another currency ("USD 23.6") carry no rupee amount: they're sent with
+// currency + foreign_amount, and Chanda asks for the ₹ amount before confirming.
 function parseAxis_(subject, body) {
   var t = flat_(body);
-  var m = t.match(/Transaction Amount:\s*INR\s*([\d,]+(?:\.\d{1,2})?)\s*Merchant Name:\s*(.+?)\s*Axis Bank Credit Card No\.?\s*XX(\d{4})\s*Date & Time:\s*(\d{2})-(\d{2})-(\d{4})/i);
+  var m = t.match(/Transaction amount(?:\s*\([A-Z]{3}\))?:\s*([A-Z]{3})\s*([\d,]+(?:\.\d{1,2})?)\s*Merchant name:\s*(.+?)\s*Axis Bank Credit Card No\.?:?\s*XX(\d{4})\s*Date (?:&|and) time:\s*(\d{2})-(\d{2})-(\d{4})/i);
   if (m) {
-    var spent = /spent/i.test(subject) || !/(refund|reversal|credited)/i.test(subject);
-    return {
+    var spent = /spent|transaction alert/i.test(subject) || !/(refund|reversal|credited)/i.test(subject);
+    var currency = m[1].toUpperCase();
+    var parsed = {
       kind: spent ? 'card_spend' : 'card_credit',
       bank: 'Axis',
-      last4: m[3],
-      amount: amount_(m[1]),
-      occurred_on: iso_(m[6], m[5], m[4]),
-      merchant: m[2].trim(),
+      last4: m[4],
+      amount: amount_(m[2]),
+      occurred_on: iso_(m[7], m[6], m[5]),
+      merchant: m[3].trim(),
     };
+    if (currency !== 'INR') {
+      parsed.currency = currency;
+      parsed.foreign_amount = amount_(m[2]);
+    }
+    return parsed;
   }
   return parseAxisAccount_(subject, t);
 }
@@ -107,7 +126,8 @@ function parseAxis_(subject, body) {
 function parseAxisAccount_(subject, t) {
   var m = t.match(/Amount (Debited|Credited):\s*INR\s*([\d,]+(?:\.\d{1,2})?)\s*Account Number:\s*XX(\d{4})\s*Date & Time:\s*(\d{2})-(\d{2})-(\d{2,4}),?\s*[\d:]+\s*IST\s*Transaction Info:\s*(.+?)\s*(?:If this transaction|Feel free|Call us|Always open|To block|$)/i);
   if (m) {
-    var info = m[7].trim();
+    // Safety net: never let the footer leak into the payee name.
+    var info = m[7].split(/\s(?:If this|Feel free|Call us|Always open|To block|Regards)\b/i)[0].trim().slice(0, 80);
     var upi = info.match(/^UPI\/P2[AM]\/\d+\/([^\/]+)/i);
     return {
       kind: m[1].toLowerCase() === 'debited' ? 'account_debit' : 'account_credit',
@@ -120,9 +140,13 @@ function parseAxisAccount_(subject, t) {
     };
   }
 
-  var ach = t.match(/A\/c no\.?\s*XX(\d{4}) has been (debited|credited) with INR\s*([\d,]+(?:\.\d{1,2})?) on (\d{2})-(\d{2})-\s*(\d{4})\s*[\d:]*\s*(?:IST)?\s*by (.+?)\.(?:\s|$)/i);
+  // Also "…credited with INR 8.00 on 11-05-2026 at 14:48:37 IST by SB 1234567890 Int.Pd ."
+  var ach = t.match(/A\/c no\.?\s*XX(\d{4}) has been (debited|credited) with INR\s*([\d,]+(?:\.\d{1,2})?) on (\d{2})-(\d{2})-\s*(\d{4})\s*(?:at\s*)?[\d:]*\s*(?:IST)?\s*by (.+?)\s?\.(?:\s|$)/i);
   if (ach) {
-    var who = ach[7].trim();
+    // Savings interest: not shared money.
+    if (/\bint\.?\s*pd\b|interest/i.test(ach[7])) return { kind: 'skip', reason: 'interest' };
+    // Never pass on account numbers that some descriptions include.
+    var who = ach[7].replace(/\d{6,}/g, '').replace(/\s+/g, ' ').trim();
     var via = (who.match(/^(ACH|NACH|NEFT|IMPS|RTGS)\b/i) || [])[1];
     return {
       kind: ach[2].toLowerCase() === 'debited' ? 'account_debit' : 'account_credit',
@@ -203,6 +227,7 @@ function parseAlert(sender, subject, body) {
   else if (/hdfc/.test(domain)) parsed = parseHdfc_(subject, body);
 
   // occurred_on may be missing (Axis savings): the importer then uses the email's date.
+  if (parsed && parsed.kind === 'skip') return parsed;
   if (parsed && parsed.amount > 0 && !/NaN|undefined/.test(parsed.occurred_on || '')) return parsed;
   return { kind: 'unreadable' };
 }

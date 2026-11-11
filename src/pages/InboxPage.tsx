@@ -86,9 +86,11 @@ function InboxItem({
   const payer = members.find((m) => m.id === t.paid_by_member_id)?.display_name
   const category = categories.find((c) => c.id === categoryId)
   const credit = t.direction === 'credit'
+  const foreign = foreignCharge(t)
 
   async function setStatus(status: 'confirmed' | 'ignored') {
     if (status === 'confirmed' && !categoryId) return setError('Pick a category first.')
+    if (status === 'confirmed' && foreign?.needsRupees) return setError('Enter the ₹ amount first (pencil button).')
     setBusy(true)
     setError(null)
     const { error } = await supabase
@@ -119,6 +121,19 @@ function InboxItem({
         </div>
 
         <SettleUpAction t={t} onDone={onDone} onError={setError} />
+
+        {foreign && (
+          <p className="rounded-md bg-amber-500/15 px-3 py-2 text-xs">
+            Charged in {foreign.currency} ({foreign.currency} {foreign.amount}).{' '}
+            {foreign.needsRupees ? (
+              <>
+                Tap <b>✎</b> and enter the ₹ amount from your card statement, then confirm.
+              </>
+            ) : (
+              <>₹ amount entered.</>
+            )}
+          </p>
+        )}
 
         {credit && !(t.raw as { settle_member_id?: string } | null)?.settle_member_id && (
           <p className="rounded-md bg-muted px-3 py-2 text-xs">
@@ -166,4 +181,11 @@ function InboxItem({
       </CardContent>
     </Card>
   )
+}
+
+/** A card spend imported in another currency: its amount stays a placeholder until edited. */
+function foreignCharge(t: Transaction): { currency: string; amount: number; needsRupees: boolean } | null {
+  const raw = t.raw as { currency?: string; foreign_amount?: number } | null
+  if (!raw?.currency || raw.foreign_amount == null) return null
+  return { currency: raw.currency, amount: Number(raw.foreign_amount), needsRupees: Number(t.amount) === Number(raw.foreign_amount) }
 }

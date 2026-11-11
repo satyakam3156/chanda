@@ -81,6 +81,36 @@ function importSince_(window) {
   Logger.log('Chanda import (' + window + '): ' + JSON.stringify(counts));
 }
 
+/**
+ * Run by hand when Chanda lists emails it "couldn't read": logs the plain text the
+ * script sees for those emails (last `days`, default 7), with numbers that could be
+ * card/account/phone digits masked. Nothing is sent anywhere. Copy the log to Claude.
+ */
+function showUnreadable(days) {
+  var query = '(' + BANK_SENDERS.map(function (d) { return 'from:' + d; }).join(' OR ') + ') newer_than:' + (days || 7) + 'd';
+  GmailApp.search(query, 0, 100).forEach(function (thread) {
+    thread.getMessages().forEach(function (msg) {
+      var parsed = parseAlert(msg.getFrom(), msg.getSubject(), msg.getPlainBody());
+      if (parsed.kind !== 'unreadable') return;
+      Logger.log('----- ' + msg.getSubject() + '\n' + mask_(msg.getPlainBody()).slice(0, 1500));
+    });
+  });
+}
+
+/** Hides emails and digit runs that aren't amounts, dates or times. */
+function mask_(text) {
+  var keep = [];
+  function protect(m) { keep.push(m); return '\u0000' + (keep.length - 1) + '\u0000'; }
+  return String(text)
+    .replace(/\b\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}\b/g, protect)
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, protect)
+    .replace(/(?:INR|Rs\.?|USD|₹)\s?[\d,]+(?:\.\d+)?/g, protect)
+    .replace(/\b\d[\d,]*\.\d{2}\b/g, protect)
+    .replace(/[\w.+-]+@[\w.-]+/g, '<…@…>')
+    .replace(/\d{3,}/g, function (m) { return new Array(m.length + 1).join('#'); })
+    .replace(/\u0000(\d+)\u0000/g, function (_, i) { return keep[Number(i)]; });
+}
+
 function send_(cfg, alert) {
   var res = UrlFetchApp.fetch(cfg.url + '/rest/v1/rpc/ingest_bank_alert', {
     method: 'post',

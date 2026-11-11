@@ -160,6 +160,67 @@ c. UPI Reference No.: 123456789012`,
     expect: { kind: 'skip' },
   },
   {
+    name: 'Invisible characters between words still parse',
+    sender: 'alerts@axis.bank.in',
+    subject: 'INR 699.00 was debited from your A/c no. XX4444.',
+    body: 'Amount Debited:\nINR 699.00\nAccount Number:\nXX4444\nDate & Time:\n10-11-26, 09:00:00 IST\nTransaction Info:\nUPI/P2M/123456789012/LIVPURE\n\nIf\u200b this transaction was not initiated by you:\nTo block UPI: SMS BLOCKUPI',
+    expect: { kind: 'account_debit', amount: 699, counterparty: 'LIVPURE' },
+  },
+  ...['AXIS BANK : EMI Letter with Monthly EMI Details', 'Upcoming AutoPay txn. reminder', 'No Dues Certificates of EMI on your Axis Bank Credit Card', 'Your say on HDFC Bank New MobileBanking experience', 'Your Axis Bank Atlas Credit Card ending XX12 - October 2026'].map((subject) => ({
+    name: `Notice skipped: ${subject.slice(0, 40)}`,
+    sender: 'alerts@axis.bank.in',
+    subject,
+    body: 'INR 1,000',
+    expect: { kind: 'skip' },
+  })),
+  {
+    name: 'ICICI with bold markers and a link in the plain text',
+    sender: 'credit_cards@icici.bank.in',
+    subject: 'Transaction alert for your ICICI Bank Credit Card',
+    body: 'Your ICICI Bank Credit Card XX1111 has been used for a transaction of *INR 300.00* on Nov\n11, 2026 at 06:45:18. Info: *Swiggy Instamart*. <https://example.com/x>\nThe Available Credit Limit on your card is INR 2,30,830.16',
+    expect: { kind: 'card_spend', amount: 300, occurred_on: '2026-11-11', merchant: 'Swiggy Instamart' },
+  },
+  {
+    name: 'Axis card, second layout',
+    sender: 'alerts@axis.bank.in',
+    subject: 'Transaction alert on Axis Bank Credit Card',
+    body: `Here's the summary of your Axis Bank Credit Card transaction:
+Transaction amount (INR): INR 51802
+Merchant name: SOME AIRL
+Axis Bank Credit Card No.: XX2222
+Date and time: 16-10-2026 18:17:57 IST
+Available limit (INR): 683138.63`,
+    expect: { kind: 'card_spend', bank: 'Axis', amount: 51802, occurred_on: '2026-10-16', merchant: 'SOME AIRL', currency: undefined },
+  },
+  {
+    name: 'Axis card in USD: sent with currency for the Inbox',
+    sender: 'alerts@axis.bank.in',
+    subject: 'USD 23.6 spent on credit card no. XX2222',
+    body: `Transaction Amount:
+USD 23.6
+Merchant Name:
+SOME AI
+Axis Bank Credit Card No.
+XX2222
+Date & Time:
+28-10-2026, 10:36:29 IST`,
+    expect: { kind: 'card_spend', amount: 23.6, currency: 'USD', foreign_amount: 23.6, merchant: 'SOME AI', occurred_on: '2026-10-28' },
+  },
+  {
+    name: 'Axis savings interest is skipped',
+    sender: 'alerts@axis.bank.in',
+    subject: 'Credit transaction alert for Axis Bank A/c',
+    body: 'We wish to inform you that your A/c no. XX4444 has been credited with INR 8.00 on 11-05-2026 at\n14:48:37 IST by SB 123456789012345 Int.Pd .\nTo check your available balance',
+    expect: { kind: 'skip' },
+  },
+  {
+    name: 'Axis ACH credit with "at" before the time',
+    sender: 'alerts@axis.bank.in',
+    subject: 'Credit transaction alert for Axis Bank A/c',
+    body: 'your A/c no. XX4444 has been credited with INR 5,000.00 on 01-11-2026 at 10:00:00 IST by NEFT-SOME EMPLOYER 123456789 .',
+    expect: { kind: 'account_credit', amount: 5000, occurred_on: '2026-11-01', counterparty: 'SOME EMPLOYER', via: 'NEFT' },
+  },
+  {
     name: 'Unknown bank format is reported, not guessed',
     sender: 'alerts@axis.bank.in',
     subject: 'Refund processed on your credit card',
