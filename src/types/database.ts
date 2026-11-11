@@ -20,6 +20,7 @@ export type Member = {
   email: string
   display_name: string
   user_id: string | null
+  bank_names: string[]
   created_at: string
 }
 
@@ -34,6 +35,8 @@ export type Account = {
   due_day: number | null
   purpose: string | null
   is_active: boolean
+  default_category_id: string | null
+  auto_confirm: boolean
   created_at: string
 }
 
@@ -180,11 +183,25 @@ export type EmiPayment = {
   created_at: string
 }
 
+export type IngestMiss = {
+  id: string
+  source_ref: string
+  sender: string | null
+  subject: string | null
+  received_on: string | null
+  dismissed: boolean
+  created_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
-      members: TableDef<Member, 'id' | 'user_id' | 'created_at'>
-      accounts: TableDef<Account, 'id' | 'created_at' | 'is_active' | 'last4' | 'statement_day' | 'due_day' | 'purpose'>
+      members: TableDef<Member, 'id' | 'user_id' | 'bank_names' | 'created_at'>
+      accounts: TableDef<
+        Account,
+        'id' | 'created_at' | 'is_active' | 'last4' | 'statement_day' | 'due_day' | 'purpose' | 'default_category_id' | 'auto_confirm'
+      >
+      ingest_misses: TableDef<IngestMiss, 'id' | 'sender' | 'subject' | 'received_on' | 'dismissed' | 'created_at'>
       categories: TableDef<
         Category,
         | 'id'

@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Real bank emails used to build the parsers. Never commit.
+mail samples/

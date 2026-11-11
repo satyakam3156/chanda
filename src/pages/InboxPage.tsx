@@ -12,7 +12,9 @@ import { describeSplit } from '@/lib/split'
 import { suggestCategory } from '@/lib/suggest'
 import { supabase } from '@/lib/supabase'
 import { cn, formatINR } from '@/lib/utils'
-import type { Account, Category, Transaction } from '@/types/database'
+import type { Account, Category, FixedCost, Transaction } from '@/types/database'
+import { FixedCostAction, SettleUpAction } from './inbox/InboxActions'
+import { IngestMisses } from './inbox/IngestMisses'
 
 export function InboxPage() {
   const settings = useSettings()
@@ -22,13 +24,14 @@ export function InboxPage() {
   const loadError = settings.error ?? error
   if (loadError) return <p className="text-sm text-destructive">Couldn’t load the inbox: {loadError}</p>
   if (!settings.data || !rows) return <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
-  const { accounts, categories, trips } = settings.data
+  const { accounts, categories, trips, fixedCosts } = settings.data
 
   return (
     <div className="space-y-4">
+      <IngestMisses />
       <p className="text-sm text-muted-foreground">
         {rows.length === 0
-          ? 'Nothing to review. New transactions from bank emails will land here (step 7).'
+          ? 'Nothing to review. New bank emails land here every 15 minutes.'
           : `${rows.length} transaction${rows.length > 1 ? 's' : ''} to review. Confirm to count it, or ignore it.`}
       </p>
       {rows.map((t) => (
@@ -37,6 +40,7 @@ export function InboxPage() {
           t={t}
           accounts={accounts}
           categories={categories}
+          fixedCosts={fixedCosts}
           onDone={reload}
           onEdit={() => setDialog({ t, n: Date.now() })}
         />
@@ -62,12 +66,14 @@ function InboxItem({
   t,
   accounts,
   categories,
+  fixedCosts,
   onDone,
   onEdit,
 }: {
   t: Transaction
   accounts: Account[]
   categories: Category[]
+  fixedCosts: FixedCost[]
   onDone: () => void
   onEdit: () => void
 }) {
@@ -112,7 +118,9 @@ function InboxItem({
           </p>
         </div>
 
-        {credit && (
+        <SettleUpAction t={t} onDone={onDone} onError={setError} />
+
+        {credit && !(t.raw as { settle_member_id?: string } | null)?.settle_member_id && (
           <p className="rounded-md bg-muted px-3 py-2 text-xs">
             Money back. <b>Confirm</b> to reduce the {category?.name ?? 'category'} total, or <b>Ignore</b> to leave totals unchanged.
           </p>
@@ -139,6 +147,8 @@ function InboxItem({
             </p>
           )}
         </div>
+
+        <FixedCostAction t={t} fixedCosts={fixedCosts} onDone={onDone} onError={setError} />
 
         <ErrorText>{error}</ErrorText>
 

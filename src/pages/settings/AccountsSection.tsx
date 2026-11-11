@@ -7,7 +7,7 @@ import { EditDialog } from '@/components/EditDialog'
 import { Checkbox, Field, ListRow, NativeSelect, SectionCard } from '@/components/forms'
 import { useAuth } from '@/context/AuthProvider'
 import { supabase } from '@/lib/supabase'
-import type { Account } from '@/types/database'
+import type { Account, Category } from '@/types/database'
 
 type Draft = {
   name: string
@@ -19,6 +19,8 @@ type Draft = {
   due_day: string
   purpose: string
   is_active: boolean
+  default_category_id: string
+  auto_confirm: boolean
 }
 
 function toDraft(a: Account | null, defaultOwner: string): Draft {
@@ -32,6 +34,8 @@ function toDraft(a: Account | null, defaultOwner: string): Draft {
     due_day: a?.due_day?.toString() ?? '',
     purpose: a?.purpose ?? '',
     is_active: a?.is_active ?? true,
+    default_category_id: a?.default_category_id ?? '',
+    auto_confirm: a?.auto_confirm ?? false,
   }
 }
 
@@ -39,7 +43,7 @@ function dayOrNull(v: string): number | null {
   return v.trim() === '' ? null : Number(v)
 }
 
-export function AccountsSection({ accounts, onChanged }: { accounts: Account[]; onChanged: () => void }) {
+export function AccountsSection({ accounts, categories, onChanged }: { accounts: Account[]; categories: Category[]; onChanged: () => void }) {
   const { members, member: me } = useAuth()
   const [editing, setEditing] = useState<Account | 'new' | null>(null)
   const [draft, setDraft] = useState<Draft>(() => toDraft(null, me?.id ?? ''))
@@ -68,6 +72,8 @@ export function AccountsSection({ accounts, onChanged }: { accounts: Account[]; 
       due_day: isCard ? dayOrNull(draft.due_day) : null,
       purpose: draft.purpose.trim() || null,
       is_active: draft.is_active,
+      default_category_id: draft.default_category_id || null,
+      auto_confirm: draft.auto_confirm,
     }
     const { error } =
       editing === 'new'
@@ -87,7 +93,7 @@ export function AccountsSection({ accounts, onChanged }: { accounts: Account[]; 
   return (
     <SectionCard
       title="Cards and accounts"
-      description="The last 4 digits are how bank alert emails get matched to a card."
+      description="Bank emails are matched by bank name. Last 4 digits are optional, only needed for two cards from the same bank."
       action={
         <Button size="sm" variant="outline" onClick={() => open('new')}>
           <Plus /> Add
@@ -186,6 +192,34 @@ export function AccountsSection({ accounts, onChanged }: { accounts: Account[]; 
         <Field label="Used for" htmlFor="acc-purpose" hint="A note for yourselves, e.g. “Swiggy, Blinkit, Zepto” or “EMIs”">
           <Input id="acc-purpose" value={draft.purpose} onChange={(e) => set('purpose', e.target.value)} />
         </Field>
+        <div className="space-y-3 rounded-md border border-border p-3">
+          <p className="text-sm font-medium">Bank email rules</p>
+          <Field
+            label="Default category"
+            htmlFor="acc-defcat"
+            hint="Used when an imported transaction's merchant matches no category keyword."
+          >
+            <NativeSelect id="acc-defcat" value={draft.default_category_id} onChange={(e) => set('default_category_id', e.target.value)}>
+              <option value="">None — send to Inbox</option>
+              {categories
+                .filter((c) => c.is_active || c.id === draft.default_category_id)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </NativeSelect>
+          </Field>
+          <Checkbox
+            checked={draft.auto_confirm}
+            onChange={(v) => set('auto_confirm', v)}
+            label="Confirm automatically when a category is found"
+          />
+          <p className="text-xs text-muted-foreground">
+            Off: every imported transaction waits in the Inbox. On: ones with a keyword match (or the default category) are counted straight
+            away. Travel refunds always wait.
+          </p>
+        </div>
         <Checkbox checked={draft.is_active} onChange={(v) => set('is_active', v)} label="Active" />
       </EditDialog>
     </SectionCard>

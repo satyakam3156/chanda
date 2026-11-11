@@ -20,7 +20,7 @@ export function SettingsPage() {
   return (
     <div className="space-y-5">
       <PeopleSection />
-      <AccountsSection accounts={data.accounts} onChanged={reload} />
+      <AccountsSection accounts={data.accounts} categories={data.categories} onChanged={reload} />
       <CategoriesSection categories={data.categories} onChanged={reload} />
       <FixedCostsSection fixedCosts={data.fixedCosts} onChanged={reload} />
     </div>
