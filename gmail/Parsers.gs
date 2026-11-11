@@ -7,7 +7,9 @@
  * parseAlert(sender, subject, body) returns one of:
  *   { kind: 'skip', reason }                           — not a transaction (bill payment, promo…)
  *   { kind: 'card_spend' | 'card_credit' | 'account_debit' | 'account_credit',
- *     bank, last4, amount, occurred_on, merchant?, counterparty? }
+ *     bank, last4, amount, occurred_on, occurred_time?, merchant?, counterparty? }
+ *   occurred_time is 'HH:MM:SS' (India time) when the alert states it. HDFC alerts
+ *   don't; the importer then uses the time the email arrived.
  *   { kind: 'unreadable' }                             — a bank email we don't recognise yet
  *
  * Formats verified against real emails: ICICI card spend, ICICI payment received,
@@ -74,7 +76,7 @@ function isSkippable_(subject, body) {
 //  Nov 04, 2026 at 07:48:08. Info: Swiggy. The Available Credit Limit…"
 function parseIcici_(subject, body) {
   var t = flat_(body);
-  var m = t.match(/Credit Card\s*XX(\d{4})\s*has been used for a transaction of\s*INR\s*([\d,]+(?:\.\d{1,2})?)\s*on\s*([A-Za-z]{3})[a-z]*\.?\s*(\d{1,2}),?\s*(\d{4})(?:\s*at\s*[\d:]+)?\s*\.?\s*Info:\s*(.+?)\.?\s*(?:The Available|Available Credit|In case you have not|$)/i);
+  var m = t.match(/Credit Card\s*XX(\d{4})\s*has been used for a transaction of\s*INR\s*([\d,]+(?:\.\d{1,2})?)\s*on\s*([A-Za-z]{3})[a-z]*\.?\s*(\d{1,2}),?\s*(\d{4})(?:\s*at\s*(\d{1,2}:\d{2}(?::\d{2})?))?\s*\.?\s*Info:\s*(.+?)\.?\s*(?:The Available|Available Credit|In case you have not|$)/i);
   if (m) {
     return {
       kind: 'card_spend',
@@ -82,7 +84,8 @@ function parseIcici_(subject, body) {
       last4: m[1],
       amount: amount_(m[2]),
       occurred_on: iso_(m[5], MONTHS_[m[3].toLowerCase()], m[4]),
-      merchant: m[6].trim(),
+      occurred_time: time_(m[6]),
+      merchant: m[7].trim(),
     };
   }
   return null;
@@ -98,7 +101,7 @@ function parseIcici_(subject, body) {
 // currency + foreign_amount, and Chanda asks for the ₹ amount before confirming.
 function parseAxis_(subject, body) {
   var t = flat_(body);
-  var m = t.match(/Transaction amount(?:\s*\([A-Z]{3}\))?:\s*([A-Z]{3})\s*([\d,]+(?:\.\d{1,2})?)\s*Merchant name:\s*(.+?)\s*Axis Bank Credit Card No\.?:?\s*XX(\d{4})\s*Date (?:&|and) time:\s*(\d{2})-(\d{2})-(\d{4})/i);
+  var m = t.match(/Transaction amount(?:\s*\([A-Z]{3}\))?:\s*([A-Z]{3})\s*([\d,]+(?:\.\d{1,2})?)\s*Merchant name:\s*(.+?)\s*Axis Bank Credit Card No\.?:?\s*XX(\d{4})\s*Date (?:&|and) time:\s*(\d{2})-(\d{2})-(\d{4}),?\s*(\d{1,2}:\d{2}(?::\d{2})?)?/i);
   if (m) {
     var spent = /spent|transaction alert/i.test(subject) || !/(refund|reversal|credited)/i.test(subject);
     var currency = m[1].toUpperCase();
@@ -108,6 +111,7 @@ function parseAxis_(subject, body) {
       last4: m[4],
       amount: amount_(m[2]),
       occurred_on: iso_(m[7], m[6], m[5]),
+      occurred_time: time_(m[8]),
       merchant: m[3].trim(),
     };
     if (currency !== 'INR') {
@@ -127,10 +131,10 @@ function parseAxis_(subject, body) {
 // Fallback: the subject alone ("INR 800.00 was debited from your A/c no. XX4444."),
 // with the email's date and no payee.
 function parseAxisAccount_(subject, t) {
-  var m = t.match(/Amount (Debited|Credited):\s*INR\s*([\d,]+(?:\.\d{1,2})?)\s*Account Number:\s*XX(\d{4})\s*Date & Time:\s*(\d{2})-(\d{2})-(\d{2,4}),?\s*[\d:]+\s*IST\s*Transaction Info:\s*(.+?)\s*(?:If this transaction|Feel free|Call us|Always open|To block|$)/i);
+  var m = t.match(/Amount (Debited|Credited):\s*INR\s*([\d,]+(?:\.\d{1,2})?)\s*Account Number:\s*XX(\d{4})\s*Date & Time:\s*(\d{2})-(\d{2})-(\d{2,4}),?\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*IST\s*Transaction Info:\s*(.+?)\s*(?:If this transaction|Feel free|Call us|Always open|To block|$)/i);
   if (m) {
     // Safety net: never let the footer leak into the payee name.
-    var info = m[7].split(/\s(?:If this|Feel free|Call us|Always open|To block|Regards)\b/i)[0].trim().slice(0, 80);
+    var info = m[8].split(/\s(?:If this|Feel free|Call us|Always open|To block|Regards)\b/i)[0].trim().slice(0, 80);
     var upi = info.match(/^UPI\/P2[AM]\/\d+\/([^\/]+)/i);
     return {
       kind: m[1].toLowerCase() === 'debited' ? 'account_debit' : 'account_credit',
@@ -138,18 +142,19 @@ function parseAxisAccount_(subject, t) {
       last4: m[3],
       amount: amount_(m[2]),
       occurred_on: iso_(year_(m[6]), m[5], m[4]),
+      occurred_time: time_(m[7]),
       counterparty: (upi ? upi[1] : info).trim(),
       via: upi ? 'UPI' : undefined,
     };
   }
 
   // Also "…credited with INR 8.00 on 11-05-2026 at 14:48:37 IST by SB 1234567890 Int.Pd ."
-  var ach = t.match(/A\/c no\.?\s*XX(\d{4}) has been (debited|credited) with INR\s*([\d,]+(?:\.\d{1,2})?) on (\d{2})-(\d{2})-\s*(\d{4})\s*(?:at\s*)?[\d:]*\s*(?:IST)?\s*by (.+?)\s?\.(?:\s|$)/i);
+  var ach = t.match(/A\/c no\.?\s*XX(\d{4}) has been (debited|credited) with INR\s*([\d,]+(?:\.\d{1,2})?) on (\d{2})-(\d{2})-\s*(\d{4})\s*(?:at\s*)?(\d{1,2}:\d{2}(?::\d{2})?)?\s*(?:IST)?\s*by (.+?)\s?\.(?:\s|$)/i);
   if (ach) {
     // Savings interest: not shared money.
-    if (/\bint\.?\s*pd\b|interest/i.test(ach[7])) return { kind: 'skip', reason: 'interest' };
+    if (/\bint\.?\s*pd\b|interest/i.test(ach[8])) return { kind: 'skip', reason: 'interest' };
     // Never pass on account numbers that some descriptions include.
-    var who = ach[7].replace(/\d{6,}/g, '').replace(/\s+/g, ' ').trim();
+    var who = ach[8].replace(/\d{6,}/g, '').replace(/\s+/g, ' ').trim();
     var via = (who.match(/^(ACH|NACH|NEFT|IMPS|RTGS)\b/i) || [])[1];
     return {
       kind: ach[2].toLowerCase() === 'debited' ? 'account_debit' : 'account_credit',
@@ -157,6 +162,7 @@ function parseAxisAccount_(subject, t) {
       last4: ach[1],
       amount: amount_(ach[3]),
       occurred_on: iso_(ach[6], ach[5], ach[4]),
+      occurred_time: time_(ach[7]),
       counterparty: who.replace(/^(?:N?ACH|NEFT|IMPS|RTGS)[-\/](?:DR|CR)?[-\/]?/i, '').trim(),
       via: via ? via.toUpperCase() : undefined,
     };
@@ -212,6 +218,12 @@ function parseHdfc_(subject, body) {
     };
   }
   return null;
+}
+
+/** "6:45" or "06:45:18" → "06:45:18", or undefined. */
+function time_(s) {
+  var m = String(s || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  return m ? m[1].padStart(2, '0') + ':' + m[2] + ':' + (m[3] || '00') : undefined;
 }
 
 function year_(y) {

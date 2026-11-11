@@ -30,6 +30,14 @@ export function monthLabel(ym: string): string {
   return new Date(y, m - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' })
 }
 
+/** "21:08:28" → "9:08 pm". */
+export function timeLabel(time: string | null | undefined): string | null {
+  const m = time?.match(/^(\d{1,2}):(\d{2})/)
+  if (!m) return null
+  const h = Number(m[1])
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'am' : 'pm'}`
+}
+
 export function dayLabel(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })

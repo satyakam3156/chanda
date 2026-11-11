@@ -54,8 +54,7 @@ export function TransactionsPage() {
   if (loadError) {
     return (
       <p className="text-sm text-destructive">
-        Couldn’t load transactions: {loadError}. If this mentions a missing table, run{' '}
-        <code>supabase/migrations/0003_transactions.sql</code> in Supabase.
+        Couldn’t load transactions: {loadError}. If this mentions a missing table or column, run the newest file in <code>supabase/migrations/</code> you haven’t run yet, in Supabase.
       </p>
     )
   }

@@ -7,7 +7,7 @@ import { TransactionDialog } from '@/components/TransactionDialog'
 import { useAuth } from '@/context/AuthProvider'
 import { useSettings } from '@/data/useSettings'
 import { useTransactions } from '@/data/useTransactions'
-import { dayLabel } from '@/lib/month'
+import { dayLabel, timeLabel } from '@/lib/month'
 import { describeSplit } from '@/lib/split'
 import { suggestCategory } from '@/lib/suggest'
 import { supabase } from '@/lib/supabase'
@@ -109,7 +109,7 @@ function InboxItem({
           <div className="min-w-0">
             <p className="truncate font-medium">{t.description}</p>
             <p className="text-xs text-muted-foreground">
-              {[dayLabel(t.occurred_on), account?.name ?? 'Cash / other', payer && `${credit ? 'to' : 'by'} ${payer}`]
+              {[dayLabel(t.occurred_on) + (t.occurred_time ? `, ${timeLabel(t.occurred_time)}` : ''), account?.name ?? 'Cash / other', payer && `${credit ? 'to' : 'by'} ${payer}`]
                 .filter(Boolean)
                 .join(' · ')}
             </p>

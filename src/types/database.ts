@@ -76,6 +76,8 @@ export type FixedCost = {
 export type Transaction = {
   id: string
   occurred_on: string
+  /** 'HH:MM:SS', India time. From the bank alert, or entered by hand. */
+  occurred_time: string | null
   amount: number
   direction: 'debit' | 'credit'
   description: string
@@ -245,6 +247,7 @@ export type Database = {
       transactions: TableDef<
         Transaction,
         | 'id'
+        | 'occurred_time'
         | 'direction'
         | 'account_id'
         | 'category_id'

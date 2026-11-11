@@ -11,8 +11,8 @@ export function SettingsPage() {
   if (error) {
     return (
       <p className="text-sm text-destructive">
-        Couldn’t load settings: {error}. If this mentions a missing table, run <code>supabase/migrations/0002_settings.sql</code> in
-        Supabase.
+        Couldn’t load settings: {error}. If this mentions a missing table or column, run the newest file in{' '}
+        <code>supabase/migrations/</code> you haven’t run yet, in Supabase.
       </p>
     )
   }

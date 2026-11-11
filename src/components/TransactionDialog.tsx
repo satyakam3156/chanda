@@ -16,6 +16,7 @@ type Draft = {
   direction: Transaction['direction']
   amount: string
   occurred_on: string
+  occurred_time: string // 'HH:MM', '' = not known
   description: string
   account_id: string // '' = cash / other
   paid_by_member_id: string
@@ -35,6 +36,7 @@ function toDraft(t: Transaction | null, defaultPayer: string, defaultDate: strin
     direction: t?.direction ?? 'debit',
     amount: t?.amount.toString() ?? '',
     occurred_on: t?.occurred_on ?? defaultDate,
+    occurred_time: t?.occurred_time?.slice(0, 5) ?? '',
     description: t?.description ?? '',
     account_id: t?.account_id ?? '',
     paid_by_member_id: t?.paid_by_member_id ?? defaultPayer,
@@ -140,6 +142,12 @@ export function TransactionDialog({
       direction: draft.direction,
       amount,
       occurred_on: draft.occurred_on,
+      // Keep the seconds from the bank alert unless the time was changed.
+      occurred_time: draft.occurred_time
+        ? transaction?.occurred_time?.startsWith(draft.occurred_time)
+          ? transaction.occurred_time
+          : `${draft.occurred_time}:00`
+        : null,
       description: draft.description.trim(),
       account_id: draft.account_id || null,
       paid_by_member_id: draft.paid_by_member_id,
@@ -207,6 +215,9 @@ export function TransactionDialog({
           <Input id="tx-date" type="date" value={draft.occurred_on} onChange={(e) => set('occurred_on', e.target.value)} />
         </Field>
       </div>
+      <Field label="Time (optional)" htmlFor="tx-time">
+        <Input id="tx-time" type="time" value={draft.occurred_time} onChange={(e) => set('occurred_time', e.target.value)} />
+      </Field>
 
       <Field label="Description" htmlFor="tx-desc">
         <Input id="tx-desc" placeholder="e.g. Swiggy" value={draft.description} onChange={(e) => changeDescription(e.target.value)} />

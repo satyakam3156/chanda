@@ -72,7 +72,7 @@ Do this **signed in to the Gmail account that receives the bank alerts**.
    - The permissions listed should be: view your email (read-only), connect to an external service, run when you're not present.
 5. `setup` imports the last 3 days, then repeats every 15 minutes. **Executions** (left menu) shows each run's log, e.g. `{"inbox":3,"duplicate":5,"skip":1,…}`.
 
-**Import older alerts (optional):** pick **`backfill`** → Run. It imports the last 31 days. All of it lands in the Inbox (or is auto-confirmed per your card rules).
+**Import older alerts (optional):** pick **`backfill`** → Run. It imports the last 31 days. To import **only this calendar month** (from the 1st), pick **`backfillThisMonth`** instead, e.g. after starting fresh with `supabase/scripts/clean-activity.sql`. All of it lands in the Inbox (or is auto-confirmed per your card rules).
 
 ## 4. Using it
 
@@ -109,3 +109,4 @@ How her emails are handled:
 - **0008 (after the first import):** run [`supabase/migrations/0008_ingest_fixes.sql`](../supabase/migrations/0008_ingest_fixes.sql), paste the new `gmail/Parsers.gs` into the script, then run `backfill` once to pick up Axis savings alerts. Adds the categories *Home & utilities* and *Subscriptions* (50/50) with payee keywords, and **Settings → Bank emails: always ignore** (starts with `liquor collective`): those alerts are imported as Ignored, never in the Inbox.
 - **0009:** run [`supabase/migrations/0009_ingest_names.sql`](../supabase/migrations/0009_ingest_names.sql) (shortened names like "UPI from NIVEDITA" become settle-ups; Inbox items without an account are cleared for re-import), paste the new `gmail/Parsers.gs`, then run `backfill`.
 - **0010:** run [`supabase/migrations/0010_foreign_currency.sql`](../supabase/migrations/0010_foreign_currency.sql), paste the new `gmail/Parsers.gs` **and** `gmail/Code.gs`, then run `backfill`. Card spends in another currency (e.g. USD) land in the Inbox with the foreign amount as a placeholder; tap ✎, enter the ₹ amount from the statement, then confirm. Also reads the second Axis card layout, skips savings interest, and adds `showUnreadable`: run it to log a masked copy of any email Chanda couldn't read, to send to Claude.
+- **0011 (transaction times):** run [`supabase/migrations/0011_transaction_time.sql`](../supabase/migrations/0011_transaction_time.sql) **before** pushing the app (the app reads the new column). Paste the new `gmail/Parsers.gs` and `gmail/Code.gs`, then run `backfillThisMonth`: it fills in times for transactions already imported (log shows `time_added`) without creating duplicates. HDFC alerts state no time, so the time the email arrived is used.

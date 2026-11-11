@@ -22,6 +22,7 @@ export function useTransactions(query: Query) {
       q = q.gte('occurred_on', from).lt('occurred_on', to)
     }
     q.order('occurred_on', { ascending: false })
+      .order('occurred_time', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
         if (cancelled) return

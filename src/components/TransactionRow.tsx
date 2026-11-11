@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/AuthProvider'
+import { timeLabel } from '@/lib/month'
 import { describeSplit } from '@/lib/split'
 import { tripSplit } from '@/lib/trips'
 import { cn, formatINR } from '@/lib/utils'
@@ -48,7 +49,7 @@ export function TransactionRow({
           {t.status === 'ignored' && <Badge variant="secondary">Ignored</Badge>}
         </span>
         <span className="block truncate text-xs text-muted-foreground">
-          {[trip ? `Trip: ${trip.name}` : (category?.name ?? 'No category'), account?.name ?? 'Cash / other', payer && `${credit ? 'to' : 'by'} ${payer}`, split]
+          {[timeLabel(t.occurred_time), trip ? `Trip: ${trip.name}` : (category?.name ?? 'No category'), account?.name ?? 'Cash / other', payer && `${credit ? 'to' : 'by'} ${payer}`, split]
             .filter(Boolean)
             .join(' · ')}
         </span>

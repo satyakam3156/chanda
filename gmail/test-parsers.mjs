@@ -17,7 +17,7 @@ const cases = [
 Your ICICI Bank Credit Card XX1111 has been used for a transaction of INR 1,497.00 on Nov
 08, 2026 at 01:15:11. Info: SWIGGY PVT LTD FOOD1.
 The Available Credit Limit on your card is INR 2,43,913.16 and Total Credit Limit is INR 2,60,000.00.`,
-    expect: { kind: 'card_spend', bank: 'ICICI', last4: '1111', amount: 1497, occurred_on: '2026-11-08', merchant: 'SWIGGY PVT LTD FOOD1' },
+    expect: { kind: 'card_spend', bank: 'ICICI', last4: '1111', amount: 1497, occurred_on: '2026-11-08', merchant: 'SWIGGY PVT LTD FOOD1', occurred_time: '01:15:11' },
   },
   {
     name: 'ICICI merchant with a star',
@@ -47,7 +47,7 @@ XX2222
 Date & Time:
 08-11-2026, 16:40:23 IST
 Available Limit*:`,
-    expect: { kind: 'card_spend', bank: 'Axis', last4: '2222', amount: 970, occurred_on: '2026-11-08', merchant: 'AIRTEL PAYM' },
+    expect: { kind: 'card_spend', bank: 'Axis', last4: '2222', amount: 970, occurred_on: '2026-11-08', merchant: 'AIRTEL PAYM', occurred_time: '16:40:23' },
   },
   {
     name: 'HDFC UPI debit',
@@ -58,7 +58,7 @@ Greetings from HDFC Bank!
 Rs.16000.00 is debited from your account ending 3333 towards VPA
 **********landlord@oksbi (SOME LANDLORD) on 10-11-26.
 UPI transaction reference no.: 123456789012.`,
-    expect: { kind: 'account_debit', bank: 'HDFC', last4: '3333', amount: 16000, occurred_on: '2026-11-10', counterparty: 'SOME LANDLORD' },
+    expect: { kind: 'account_debit', bank: 'HDFC', last4: '3333', amount: 16000, occurred_on: '2026-11-10', counterparty: 'SOME LANDLORD', occurred_time: undefined },
   },
   {
     name: 'HDFC UPI credit (best guess)',
@@ -83,7 +83,7 @@ Date & Time:
 Transaction Info:
 UPI/P2M/123456789012/Blinkit
 If this transaction was not initiated by you:`,
-    expect: { kind: 'account_debit', bank: 'Axis', last4: '4444', amount: 1373, occurred_on: '2026-11-07', counterparty: 'Blinkit', via: 'UPI' },
+    expect: { kind: 'account_debit', bank: 'Axis', last4: '4444', amount: 1373, occurred_on: '2026-11-07', counterparty: 'Blinkit', via: 'UPI', occurred_time: '21:08:28' },
   },
   {
     name: 'Axis savings UPI credit from a person',
@@ -108,7 +108,7 @@ Feel free to connect with us for any clarification.`,
 We wish to inform you that your A/c no. XX4444 has been debited with INR 10000.00 on 02-11-
 2026 06:55:02 IST by ACH-DR-SOME FUND HOUSE P.
 To check your available balance, please click here.`,
-    expect: { kind: 'account_debit', bank: 'Axis', amount: 10000, occurred_on: '2026-11-02', counterparty: 'SOME FUND HOUSE P', via: 'ACH' },
+    expect: { kind: 'account_debit', bank: 'Axis', amount: 10000, occurred_on: '2026-11-02', counterparty: 'SOME FUND HOUSE P', via: 'ACH', occurred_time: '06:55:02' },
   },
   {
     name: 'Axis savings, unknown body: subject only',
@@ -178,7 +178,7 @@ c. UPI Reference No.: 123456789012`,
     sender: 'credit_cards@icici.bank.in',
     subject: 'Transaction alert for your ICICI Bank Credit Card',
     body: 'Your ICICI Bank Credit Card XX1111 has been used for a transaction of *INR 300.00* on Nov\n11, 2026 at 06:45:18. Info: *Swiggy Instamart*. <https://example.com/x>\nThe Available Credit Limit on your card is INR 2,30,830.16',
-    expect: { kind: 'card_spend', amount: 300, occurred_on: '2026-11-11', merchant: 'Swiggy Instamart' },
+    expect: { kind: 'card_spend', amount: 300, occurred_on: '2026-11-11', merchant: 'Swiggy Instamart', occurred_time: '06:45:18' },
   },
   {
     name: 'Axis card, second layout',
@@ -190,7 +190,7 @@ Merchant name: SOME AIRL
 Axis Bank Credit Card No.: XX2222
 Date and time: 16-10-2026 18:17:57 IST
 Available limit (INR): 683138.63`,
-    expect: { kind: 'card_spend', bank: 'Axis', amount: 51802, occurred_on: '2026-10-16', merchant: 'SOME AIRL', currency: undefined },
+    expect: { kind: 'card_spend', bank: 'Axis', amount: 51802, occurred_on: '2026-10-16', merchant: 'SOME AIRL', currency: undefined, occurred_time: '18:17:57' },
   },
   {
     name: 'Axis card in USD: sent with currency for the Inbox',
@@ -218,7 +218,7 @@ Date & Time:
     sender: 'alerts@axis.bank.in',
     subject: 'Credit transaction alert for Axis Bank A/c',
     body: 'your A/c no. XX4444 has been credited with INR 5,000.00 on 01-11-2026 at 10:00:00 IST by NEFT-SOME EMPLOYER 123456789 .',
-    expect: { kind: 'account_credit', amount: 5000, occurred_on: '2026-11-01', counterparty: 'SOME EMPLOYER', via: 'NEFT' },
+    expect: { kind: 'account_credit', amount: 5000, occurred_on: '2026-11-01', counterparty: 'SOME EMPLOYER', via: 'NEFT', occurred_time: '10:00:00' },
   },
   {
     name: 'ICICI declined transaction is skipped',

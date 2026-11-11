@@ -39,11 +39,26 @@ function backfill(days) {
   importSince_((days || 31) + 'd');
 }
 
-function importSince_(window) {
+/**
+ * Run by hand to import this calendar month only, from the 1st (India time) to now.
+ * Alerts dated before the 1st are left out, e.g. after starting fresh with
+ * supabase/scripts/clean-activity.sql.
+ */
+function backfillThisMonth() {
+  var now = new Date();
+  var first = Utilities.formatDate(now, 'Asia/Kolkata', 'yyyy-MM') + '-01';
+  var day = Number(Utilities.formatDate(now, 'Asia/Kolkata', 'd'));
+  // Search a day wider than needed (Gmail's date filters aren't in India time);
+  // the date check below drops anything from last month.
+  importSince_((day + 1) + 'd', first);
+}
+
+/** window: Gmail "newer_than" value, e.g. '3d'. fromDate: optional 'YYYY-MM-DD'; older alerts are skipped. */
+function importSince_(window, fromDate) {
   var cfg = config_();
   var me = Session.getEffectiveUser().getEmail();
   var query = '(' + BANK_SENDERS.map(function (d) { return 'from:' + d; }).join(' OR ') + ') newer_than:' + window;
-  var counts = { inbox: 0, confirmed: 0, duplicate: 0, miss: 0, skip: 0, error: 0 };
+  var counts = { inbox: 0, confirmed: 0, duplicate: 0, miss: 0, skip: 0, before_start: 0, error: 0 };
   var start = 0;
 
   while (true) {
@@ -66,7 +81,16 @@ function importSince_(window) {
           if (!cfg.sendLast4) delete alert.last4;
           alert.source_ref = msg.getId();
           alert.mailbox = me;
-          if (!alert.occurred_on) alert.occurred_on = Utilities.formatDate(msg.getDate(), 'Asia/Kolkata', 'yyyy-MM-dd');
+          var receivedOn = Utilities.formatDate(msg.getDate(), 'Asia/Kolkata', 'yyyy-MM-dd');
+          if (!alert.occurred_on) alert.occurred_on = receivedOn;
+          // No time in the alert (e.g. HDFC): use when the email arrived, if it's the same day.
+          if (!alert.occurred_time && alert.kind !== 'unreadable' && alert.occurred_on === receivedOn) {
+            alert.occurred_time = Utilities.formatDate(msg.getDate(), 'Asia/Kolkata', 'HH:mm:ss');
+          }
+          if (fromDate && alert.occurred_on < fromDate) {
+            counts.before_start++;
+            return;
+          }
           var result = send_(cfg, alert);
           counts[result] = (counts[result] || 0) + 1;
         } catch (e) {
@@ -78,7 +102,7 @@ function importSince_(window) {
     if (threads.length < 100) break;
     start += 100;
   }
-  Logger.log('Chanda import (' + window + '): ' + JSON.stringify(counts));
+  Logger.log('Chanda import (' + window + (fromDate ? ', from ' + fromDate : '') + '): ' + JSON.stringify(counts));
 }
 
 /**
