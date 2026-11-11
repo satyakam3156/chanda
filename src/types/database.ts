@@ -37,6 +37,7 @@ export type Account = {
   is_active: boolean
   default_category_id: string | null
   auto_confirm: boolean
+  import_category_ids: string[]
   created_at: string
 }
 
@@ -193,15 +194,34 @@ export type IngestMiss = {
   created_at: string
 }
 
+export type IngestRules = {
+  id: number
+  ignore_keywords: string[]
+}
+
+export type CardPayment = {
+  id: string
+  source_ref: string
+  paid_on: string
+  amount: number
+  via: string
+  from_account_id: string | null
+  card_account_id: string | null
+  paid_by_member_id: string | null
+  created_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
       members: TableDef<Member, 'id' | 'user_id' | 'bank_names' | 'created_at'>
       accounts: TableDef<
         Account,
-        'id' | 'created_at' | 'is_active' | 'last4' | 'statement_day' | 'due_day' | 'purpose' | 'default_category_id' | 'auto_confirm'
+        'id' | 'created_at' | 'is_active' | 'last4' | 'statement_day' | 'due_day' | 'purpose' | 'default_category_id' | 'auto_confirm' | 'import_category_ids'
       >
       ingest_misses: TableDef<IngestMiss, 'id' | 'sender' | 'subject' | 'received_on' | 'dismissed' | 'created_at'>
+      ingest_rules: TableDef<IngestRules, 'id' | 'ignore_keywords'>
+      card_payments: TableDef<CardPayment, 'id' | 'from_account_id' | 'card_account_id' | 'paid_by_member_id' | 'created_at'>
       categories: TableDef<
         Category,
         | 'id'

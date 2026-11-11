@@ -34,18 +34,27 @@ function senderDomain_(sender) {
   return m ? m[1] : '';
 }
 
+/** Offers and newsletters come from separate sender names, e.g. custcomm.icici.bank.in. */
+function isMarketingSender_(domain) {
+  return /^(?:custcomm|customer|mailers?|marketing|offers|promotions?|news(?:letter)?)\./.test(domain);
+}
+
 /** Emails that are about cards/accounts but aren't spending: never imported. */
 function isSkippable_(subject, body) {
   var subj = String(subject || '').toLowerCase();
   var s = (subj + ' ' + body).toLowerCase();
   return (
+    // Account notices: statements, charges, reminders.
+    /\bstatement\b/.test(subj) ||
+    /important update|update on applicable charges|missed call|upcoming payment notification/.test(subj) ||
+    // Card auto-debits: the card's own spend alert already covers the charge.
+    /standing instruction/.test(subj) ||
     /payment received on your icici bank credit card/.test(s) ||
     /we have received payment of/.test(s) ||
     /credit card bill payment/.test(s) ||
     /payment (?:of|for) .* (?:has been )?received towards your .*credit card/.test(s) ||
     // Only the subject: every alert body carries a "never share your OTP" warning.
-    /\b(?:otp|one time password)\b/.test(subj) ||
-    /\bstatement\b.*\b(?:is ready|has been generated)\b/.test(subj)
+    /\b(?:otp|one time password)\b/.test(subj)
   );
 }
 
@@ -85,6 +94,51 @@ function parseAxis_(subject, body) {
       merchant: m[2].trim(),
     };
   }
+  return parseAxisAccount_(subject, t);
+}
+
+// Axis savings account, verified against real emails:
+//   UPI  "Amount Debited: INR 800.00  Account Number: XX4444  Date & Time: 07-11-26, 21:08:28 IST
+//         Transaction Info: UPI/P2M/123456789012/Blinkit"           (P2A = to a person)
+//   ACH  "your A/c no. XX4444 has been debited with INR 10000.00 on 02-11-2026 06:55:02 IST
+//         by ACH-DR-SOME COMPANY."
+// Fallback: the subject alone ("INR 800.00 was debited from your A/c no. XX4444."),
+// with the email's date and no payee.
+function parseAxisAccount_(subject, t) {
+  var m = t.match(/Amount (Debited|Credited):\s*INR\s*([\d,]+(?:\.\d{1,2})?)\s*Account Number:\s*XX(\d{4})\s*Date & Time:\s*(\d{2})-(\d{2})-(\d{2,4}),?\s*[\d:]+\s*IST\s*Transaction Info:\s*(.+?)\s*(?:If this transaction|Feel free|Call us|Always open|To block|$)/i);
+  if (m) {
+    var info = m[7].trim();
+    var upi = info.match(/^UPI\/P2[AM]\/\d+\/([^\/]+)/i);
+    return {
+      kind: m[1].toLowerCase() === 'debited' ? 'account_debit' : 'account_credit',
+      bank: 'Axis',
+      last4: m[3],
+      amount: amount_(m[2]),
+      occurred_on: iso_(year_(m[6]), m[5], m[4]),
+      counterparty: (upi ? upi[1] : info).trim(),
+      via: upi ? 'UPI' : undefined,
+    };
+  }
+
+  var ach = t.match(/A\/c no\.?\s*XX(\d{4}) has been (debited|credited) with INR\s*([\d,]+(?:\.\d{1,2})?) on (\d{2})-(\d{2})-\s*(\d{4})\s*[\d:]*\s*(?:IST)?\s*by (.+?)\.(?:\s|$)/i);
+  if (ach) {
+    var who = ach[7].trim();
+    var via = (who.match(/^(ACH|NACH|NEFT|IMPS|RTGS)\b/i) || [])[1];
+    return {
+      kind: ach[2].toLowerCase() === 'debited' ? 'account_debit' : 'account_credit',
+      bank: 'Axis',
+      last4: ach[1],
+      amount: amount_(ach[3]),
+      occurred_on: iso_(ach[6], ach[5], ach[4]),
+      counterparty: who.replace(/^(?:N?ACH|NEFT|IMPS|RTGS)[-\/](?:DR|CR)?[-\/]?/i, '').trim(),
+      via: via ? via.toUpperCase() : undefined,
+    };
+  }
+
+  var s = flat_(subject).match(/^INR\s*([\d,]+(?:\.\d{1,2})?) was (debited|credited) (?:from|to) your A\/c/i);
+  if (s) {
+    return { kind: s[2].toLowerCase() === 'debited' ? 'account_debit' : 'account_credit', bank: 'Axis', amount: amount_(s[1]) };
+  }
   return null;
 }
 
@@ -116,6 +170,20 @@ function parseHdfc_(subject, body) {
       counterparty: credit[3].trim(),
     };
   }
+  // Verified ("View: Account update for your HDFC Bank A/c"):
+  //   "Rs.500.00 has been successfully credited to your HDFC Bank account ending in 3333.
+  //    Transaction Details: a. Date: 10-11-26 b. Sender: SOME NAME (VPA: ****@okhdfcbank)"
+  var update = t.match(/Rs\.?\s*([\d,]+(?:\.\d{1,2})?) has been (?:successfully )?(credited|debited) (?:to|from) your HDFC Bank account ending (?:in )?(\d{4})\.?\s*Transaction Details:\s*a\.\s*Date:\s*(\d{2})-(\d{2})-(\d{2,4})\s*b\.\s*(?:Sender|Receiver|Beneficiary|Payee):\s*(.+?)\s*(?:\(VPA|c\.|$)/i);
+  if (update) {
+    return {
+      kind: update[2].toLowerCase() === 'credited' ? 'account_credit' : 'account_debit',
+      bank: 'HDFC',
+      last4: update[3],
+      amount: amount_(update[1]),
+      occurred_on: iso_(year_(update[6]), update[5], update[4]),
+      counterparty: update[7].trim(),
+    };
+  }
   return null;
 }
 
@@ -126,6 +194,7 @@ function year_(y) {
 /** Entry point. */
 function parseAlert(sender, subject, body) {
   var domain = senderDomain_(sender);
+  if (isMarketingSender_(domain)) return { kind: 'skip', reason: 'offer or newsletter' };
   if (isSkippable_(subject || '', flat_(body))) return { kind: 'skip', reason: 'not a transaction' };
 
   var parsed = null;
@@ -133,6 +202,7 @@ function parseAlert(sender, subject, body) {
   else if (/axis/.test(domain)) parsed = parseAxis_(subject, body);
   else if (/hdfc/.test(domain)) parsed = parseHdfc_(subject, body);
 
-  if (parsed && parsed.amount > 0 && parsed.occurred_on && !/NaN|undefined/.test(parsed.occurred_on)) return parsed;
+  // occurred_on may be missing (Axis savings): the importer then uses the email's date.
+  if (parsed && parsed.amount > 0 && !/NaN|undefined/.test(parsed.occurred_on || '')) return parsed;
   return { kind: 'unreadable' };
 }

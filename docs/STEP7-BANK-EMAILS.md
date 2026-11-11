@@ -21,7 +21,14 @@ Gmail ──(Apps Script in your Google account, every 15 min)──► reads al
 | Axis card: "INR … spent on credit card no. XX…" | Spend on the Axis card |
 | HDFC: "Rs.… is debited from your account ending … towards VPA … (NAME)" | Bank debit ("UPI to NAME") |
 | HDFC: "Rs.… is credited to your account ending … by VPA … (NAME)" | Bank credit ("UPI from NAME"). *Best guess, not yet seen in a real email* |
-| ICICI "Payment received", card bill payments | Skipped |
+| Axis savings: "INR … was debited from / credited to your A/c" | Bank debit / credit with the UPI payee |
+| Axis savings: "Debit / Credit transaction alert for Axis Bank A/c" (ACH, NEFT…) | Bank debit / credit, e.g. "ACH to SOME FUND" |
+| HDFC: "Account update for your HDFC Bank A/c" ("…credited… Sender: NAME") | Bank credit |
+| Alerts for a card/account not in Settings (in that Gmail owner's name) | Not stored |
+| ICICI "Standing Instruction" notices | Skipped (the card's spend alert already covers the charge) |
+| HDFC "UPI to CRED Club" | Kept as a **card bill payment**, not spending |
+| UPI to or from yourself (your name, or a name under you in Settings → People) | Skipped |
+| ICICI "Payment received", statements, account notices, offers and newsletters | Skipped |
 | Any other email from these banks | Listed in the Inbox as **"couldn't be read"** (subject only) |
 
 ## 1. Run the SQL
@@ -83,3 +90,20 @@ node gmail/test-parsers.mjs
 ```
 
 After changing them, paste the new `Parsers.gs` into the Apps Script project again.
+
+## Her Gmail too (for food paid from her account)
+
+When she pays Swiggy/Blinkit/Zepto by UPI from her own account, the alert reaches only her Gmail. To count those towards the food total:
+
+1. **Settings → Cards and accounts → Add:** her account (e.g. *Axis*, Bank account), **In whose name: Nivedita**. Under **Only import these categories**, tick **Food delivery** only.
+2. **She** does part 3 above, signed in to **her** Gmail, with the same three script properties (same URL, key and secret).
+
+How her emails are handled:
+- Alerts are matched only to **her** cards/accounts, so her Axis account and yours never get mixed up.
+- From that account, only payments matching a Food delivery keyword are imported, as paid by her. **Everything else is never stored**: not in the Inbox, not anywhere.
+- Alerts for her accounts that aren't in Settings are dropped the same way.
+- Her UPI transfers to you aren't imported from her side. Your own bank's credit alert already offers them as a settle-up.
+
+## Updates
+
+- **0008 (after the first import):** run [`supabase/migrations/0008_ingest_fixes.sql`](../supabase/migrations/0008_ingest_fixes.sql), paste the new `gmail/Parsers.gs` into the script, then run `backfill` once to pick up Axis savings alerts. Adds the categories *Home & utilities* and *Subscriptions* (50/50) with payee keywords, and **Settings → Bank emails: always ignore** (starts with `liquor collective`): those alerts are imported as Ignored, never in the Inbox.

@@ -1,5 +1,6 @@
 import { useSettings } from '@/data/useSettings'
 import { AccountsSection } from './AccountsSection'
+import { BankEmailsSection } from './BankEmailsSection'
 import { CategoriesSection } from './CategoriesSection'
 import { FixedCostsSection } from './FixedCostsSection'
 import { PeopleSection } from './PeopleSection'
@@ -23,6 +24,7 @@ export function SettingsPage() {
       <AccountsSection accounts={data.accounts} categories={data.categories} onChanged={reload} />
       <CategoriesSection categories={data.categories} onChanged={reload} />
       <FixedCostsSection fixedCosts={data.fixedCosts} onChanged={reload} />
+      <BankEmailsSection />
     </div>
   )
 }

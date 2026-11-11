@@ -21,6 +21,7 @@ type Draft = {
   is_active: boolean
   default_category_id: string
   auto_confirm: boolean
+  import_category_ids: string[]
 }
 
 function toDraft(a: Account | null, defaultOwner: string): Draft {
@@ -36,6 +37,7 @@ function toDraft(a: Account | null, defaultOwner: string): Draft {
     is_active: a?.is_active ?? true,
     default_category_id: a?.default_category_id ?? '',
     auto_confirm: a?.auto_confirm ?? false,
+    import_category_ids: a?.import_category_ids ?? [],
   }
 }
 
@@ -74,6 +76,7 @@ export function AccountsSection({ accounts, categories, onChanged }: { accounts:
       is_active: draft.is_active,
       default_category_id: draft.default_category_id || null,
       auto_confirm: draft.auto_confirm,
+      import_category_ids: draft.import_category_ids,
     }
     const { error } =
       editing === 'new'
@@ -93,7 +96,7 @@ export function AccountsSection({ accounts, categories, onChanged }: { accounts:
   return (
     <SectionCard
       title="Cards and accounts"
-      description="Bank emails are matched by bank name. Last 4 digits are optional, only needed for two cards from the same bank."
+      description="Bank emails are matched to the cards and accounts of whoever’s Gmail they came from, by bank name. Last 4 digits are only needed for two cards from the same bank in one name."
       action={
         <Button size="sm" variant="outline" onClick={() => open('new')}>
           <Plus /> Add
@@ -219,6 +222,25 @@ export function AccountsSection({ accounts, categories, onChanged }: { accounts:
             Off: every imported transaction waits in the Inbox. On: ones with a keyword match (or the default category) are counted straight
             away. Travel refunds always wait.
           </p>
+          <div className="space-y-1.5">
+            <p className="text-sm">Only import these categories</p>
+            {categories
+              .filter((c) => c.is_active || draft.import_category_ids.includes(c.id))
+              .map((c) => (
+                <Checkbox
+                  key={c.id}
+                  checked={draft.import_category_ids.includes(c.id)}
+                  onChange={(v) =>
+                    set('import_category_ids', v ? [...draft.import_category_ids, c.id] : draft.import_category_ids.filter((id) => id !== c.id))
+                  }
+                  label={c.name}
+                />
+              ))}
+            <p className="text-xs text-muted-foreground">
+              None ticked: everything is imported. Ticked: only those are, and the rest is never stored. Use this for a personal account, e.g.
+              only Food delivery.
+            </p>
+          </div>
         </div>
         <Checkbox checked={draft.is_active} onChange={(v) => set('is_active', v)} label="Active" />
       </EditDialog>

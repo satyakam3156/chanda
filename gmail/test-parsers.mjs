@@ -68,6 +68,98 @@ UPI transaction reference no.: 123456789012.`,
     expect: { kind: 'account_credit', amount: 12500, occurred_on: '2026-11-30', counterparty: 'PARTNER NAME' },
   },
   {
+    name: 'Axis savings UPI debit to a merchant',
+    sender: 'alerts@axis.bank.in',
+    subject: 'INR 1373.00 was debited from your A/c no. XX4444.',
+    body: `07-11-2026
+Dear Customer,
+Here's the summary of your transaction:
+Amount Debited:
+INR 1373.00
+Account Number:
+XX4444
+Date & Time:
+07-11-26, 21:08:28 IST
+Transaction Info:
+UPI/P2M/123456789012/Blinkit
+If this transaction was not initiated by you:`,
+    expect: { kind: 'account_debit', bank: 'Axis', last4: '4444', amount: 1373, occurred_on: '2026-11-07', counterparty: 'Blinkit', via: 'UPI' },
+  },
+  {
+    name: 'Axis savings UPI credit from a person',
+    sender: 'Axis Bank Alerts <alerts@axis.bank.in>',
+    subject: 'INR 2000.00 was credited to your A/c.',
+    body: `Amount Credited:
+INR 2000.00
+Account Number:
+XX4444
+Date & Time:
+09-11-26, 23:44:20 IST
+Transaction Info:
+UPI/P2A/123456789012/SOME PERSON /HDFC/UPI
+Feel free to connect with us for any clarification.`,
+    expect: { kind: 'account_credit', amount: 2000, occurred_on: '2026-11-09', counterparty: 'SOME PERSON' },
+  },
+  {
+    name: 'Axis savings ACH debit',
+    sender: 'alerts@axis.bank.in',
+    subject: 'Debit transaction alert for Axis Bank A/c',
+    body: `Thank you for banking with us.
+We wish to inform you that your A/c no. XX4444 has been debited with INR 10000.00 on 02-11-
+2026 06:55:02 IST by ACH-DR-SOME FUND HOUSE P.
+To check your available balance, please click here.`,
+    expect: { kind: 'account_debit', bank: 'Axis', amount: 10000, occurred_on: '2026-11-02', counterparty: 'SOME FUND HOUSE P', via: 'ACH' },
+  },
+  {
+    name: 'Axis savings, unknown body: subject only',
+    sender: 'alerts@axis.bank.in',
+    subject: 'INR 2000.00 was credited to your A/c.',
+    body: 'A body we have not seen yet',
+    expect: { kind: 'account_credit', bank: 'Axis', amount: 2000, counterparty: undefined },
+  },
+  {
+    name: 'HDFC account update (credit)',
+    sender: 'HDFC Bank InstaAlerts <alerts@hdfcbank.bank.in>',
+    subject: 'View: Account update for your HDFC Bank A/c',
+    body: `Dear Customer,
+Greetings from HDFC Bank!
+We're writing to inform you that Rs.67500.00 has been successfully credited
+to your HDFC Bank account ending in 3333.
+Transaction Details:
+a. Date: 10-11-26
+b. Sender: SOME PERSON (VPA: ****@okhdfcbank)
+c. UPI Reference No.: 123456789012`,
+    expect: { kind: 'account_credit', bank: 'HDFC', amount: 67500, occurred_on: '2026-11-10', counterparty: 'SOME PERSON' },
+  },
+  {
+    name: 'ICICI standing instruction is skipped (the spend alert covers it)',
+    sender: 'credit_cards@icici.bank.in',
+    subject: 'Transaction Success notification for Standing Instruction on your ICICI Bank Credit Card',
+    body: 'We have successfully processed your payment of INR 79.00 towards Amazon',
+    expect: { kind: 'skip' },
+  },
+  {
+    name: 'Offers from the marketing sender are skipped',
+    sender: 'ICICI Bank <offers@custcomm.icici.bank.in>',
+    subject: 'Turn festive cheer into four-wheeled joy',
+    body: 'Car loan at INR 1,00,000',
+    expect: { kind: 'skip' },
+  },
+  {
+    name: 'Monthly statement is skipped',
+    sender: 'alerts@axis.bank.in',
+    subject: 'AXIS BANK : Statement for October 2026',
+    body: 'Your statement is attached.',
+    expect: { kind: 'skip' },
+  },
+  {
+    name: 'Account notice is skipped',
+    sender: 'alerts@axis.bank.in',
+    subject: 'Important update regarding IMPS charges on your savings account',
+    body: 'Charges of INR 5 apply.',
+    expect: { kind: 'skip' },
+  },
+  {
     name: 'Unknown bank format is reported, not guessed',
     sender: 'alerts@axis.bank.in',
     subject: 'Refund processed on your credit card',
