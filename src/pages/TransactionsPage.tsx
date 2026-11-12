@@ -83,8 +83,8 @@ export function TransactionsPage() {
         </Link>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <NativeSelect aria-label="Filter by category" className="w-auto" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+      <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+        <NativeSelect aria-label="Filter by category" className="w-full sm:w-auto" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -93,7 +93,7 @@ export function TransactionsPage() {
           ))}
           <option value="none">No category</option>
         </NativeSelect>
-        <NativeSelect aria-label="Filter by who paid" className="w-auto" value={payerFilter} onChange={(e) => setPayerFilter(e.target.value)}>
+        <NativeSelect aria-label="Filter by who paid" className="w-full sm:w-auto" value={payerFilter} onChange={(e) => setPayerFilter(e.target.value)}>
           <option value="">Anyone paid</option>
           {members.map((m) => (
             <option key={m.id} value={m.id}>
@@ -101,7 +101,9 @@ export function TransactionsPage() {
             </option>
           ))}
         </NativeSelect>
-        <Checkbox checked={showIgnored} onChange={setShowIgnored} label="Show ignored" />
+        <div className="col-span-2">
+          <Checkbox checked={showIgnored} onChange={setShowIgnored} label="Show ignored" />
+        </div>
       </div>
 
       {byDay.length === 0 ? (

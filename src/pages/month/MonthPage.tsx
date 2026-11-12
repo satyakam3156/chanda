@@ -248,7 +248,7 @@ function Breakdown({ lines, members, me, view }: { lines: Line[]; members: Membe
               <div className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{l.label}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
+                  <span className="line-clamp-2 text-xs text-muted-foreground">
                     {l.detail}
                     {l.kind !== 'fixed' && l.kind !== 'emi' && ` · ${l.count} transaction${l.count === 1 ? '' : 's'}`}
                   </span>

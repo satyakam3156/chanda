@@ -16,25 +16,105 @@ import type { Account, Category, FixedCost, Transaction } from '@/types/database
 import { FixedCostAction, SettleUpAction } from './inbox/InboxActions'
 import { IngestMisses } from './inbox/IngestMisses'
 
+type Who = 'mine' | 'theirs' | 'all'
+const WHO_KEY = 'chanda.inbox.who'
+
+function savedWho(): Who {
+  try {
+    const v = localStorage.getItem(WHO_KEY)
+    if (v === 'mine' || v === 'theirs' || v === 'all') return v
+  } catch {
+    // Storage blocked: fall back to the default.
+  }
+  return 'mine'
+}
+
 export function InboxPage() {
   const settings = useSettings()
+  const { member: me, members } = useAuth()
   const { rows, error, reload } = useTransactions({ inbox: true })
   const [dialog, setDialog] = useState<{ t: Transaction; n: number } | null>(null)
+  const [who, setWhoState] = useState<Who>(savedWho)
+
+  function setWho(w: Who) {
+    setWhoState(w)
+    try {
+      localStorage.setItem(WHO_KEY, w)
+    } catch {
+      // Not remembered this time; harmless.
+    }
+  }
 
   const loadError = settings.error ?? error
   if (loadError) return <p className="text-sm text-destructive">Couldn’t load the inbox: {loadError}</p>
   if (!settings.data || !rows) return <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
   const { accounts, categories, trips, fixedCosts } = settings.data
 
+  // Whose item it is: the owner of the card/account it came from, else whoever paid.
+  const ownerOf = (t: Transaction) => accounts.find((a) => a.id === t.account_id)?.owner_member_id ?? t.paid_by_member_id
+  const other = members.find((m) => m.id !== me?.id)
+  const otherName = other?.display_name.split(' ')[0] ?? 'Partner'
+  const mine = rows.filter((t) => ownerOf(t) === me?.id)
+  const theirs = rows.filter((t) => ownerOf(t) !== me?.id)
+  const shown = who === 'mine' ? mine : who === 'theirs' ? theirs : rows
+
+  const tabs: { id: Who; label: string; count: number }[] = [
+    { id: 'mine', label: 'Mine', count: mine.length },
+    { id: 'theirs', label: otherName, count: theirs.length },
+    { id: 'all', label: 'All', count: rows.length },
+  ]
+
+  let summary: string
+  if (rows.length === 0) summary = 'Nothing to review. New bank emails land here every 15 minutes.'
+  else if (shown.length === 0)
+    summary = who === 'mine' ? `Nothing of yours to review. ${otherName} has ${theirs.length}.` : `Nothing of ${otherName}’s to review.`
+  else
+    summary =
+      `${shown.length} transaction${shown.length > 1 ? 's' : ''} to review. Confirm to count it, or ignore it.` +
+      (who === 'theirs' ? ` Either of you can confirm these.` : '')
+
   return (
     <div className="space-y-4">
       <IngestMisses />
+      {rows.length > 0 && (
+        <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1 text-sm sm:inline-grid" role="tablist" aria-label="Whose transactions">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={who === tab.id}
+              onClick={() => setWho(tab.id)}
+              className={cn(
+                'flex min-w-0 items-center justify-center gap-1 rounded px-1.5 py-1.5 font-medium transition-colors sm:gap-1.5 sm:px-3',
+                who === tab.id ? 'bg-background shadow-sm' : 'text-muted-foreground',
+              )}
+            >
+              <span className="truncate">{tab.label}</span>
+              <span
+                className={cn(
+                  'rounded-full px-1.5 text-xs tabular-nums',
+                  tab.count > 0 ? 'bg-primary/15 text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       <p className="text-sm text-muted-foreground">
-        {rows.length === 0
-          ? 'Nothing to review. New bank emails land here every 15 minutes.'
-          : `${rows.length} transaction${rows.length > 1 ? 's' : ''} to review. Confirm to count it, or ignore it.`}
+        {summary}
+        {rows.length > 0 && shown.length === 0 && who === 'mine' && theirs.length > 0 && (
+          <>
+            {' '}
+            <button type="button" className="font-medium text-foreground underline underline-offset-2" onClick={() => setWho('theirs')}>
+              Show them
+            </button>
+          </>
+        )}
       </p>
-      {rows.map((t) => (
+      {shown.map((t) => (
         <InboxItem
           key={t.id}
           t={t}

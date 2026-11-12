@@ -36,7 +36,7 @@ export function FixedCostChecklist({ month, items, onChanged }: { month: string;
               )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{it.fixedCost.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">
+                <span className="line-clamp-2 text-xs text-muted-foreground">
                   {p
                     ? `Paid by ${nameOf(p.paid_by_member_id)}${p.paid_on ? ` on ${p.paid_on.slice(8)}/${p.paid_on.slice(5, 7)}` : ''}`
                     : `Not marked paid · usually ${nameOf(it.fixedCost.payer_member_id)} pays`}

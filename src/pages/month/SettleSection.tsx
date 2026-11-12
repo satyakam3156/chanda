@@ -92,7 +92,7 @@ export function SettleSection({
                 <span className="block truncate">
                   {name(s.from_member_id)} → {name(s.to_member_id)}
                 </span>
-                <span className="block truncate text-xs text-muted-foreground">
+                <span className="line-clamp-2 text-xs text-muted-foreground">
                   {METHOD_LABEL[s.method]} · {s.paid_on.slice(8)}/{s.paid_on.slice(5, 7)}
                   {s.note ? ` · ${s.note}` : ''}
                 </span>
@@ -161,9 +161,9 @@ export function SettleSection({
 
 function SummaryRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={strong ? 'text-right font-semibold' : 'text-right'}>{value}</span>
+    <div className="flex flex-col py-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3 sm:py-0">
+      <span className="text-xs text-muted-foreground sm:text-sm">{label}</span>
+      <span className={strong ? 'font-semibold sm:text-right' : 'sm:text-right'}>{value}</span>
     </div>
   )
 }

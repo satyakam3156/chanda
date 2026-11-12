@@ -56,14 +56,14 @@ export function SectionCard({
 }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-4 sm:p-6">
         <div className="space-y-1">
           <CardTitle className="text-base">{title}</CardTitle>
           {description && <CardDescription>{description}</CardDescription>}
         </div>
         {action}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">{children}</CardContent>
     </Card>
   )
 }
@@ -78,7 +78,7 @@ export function ListRow({ title, subtitle, badge, onClick }: { title: string; su
     >
       <span className="min-w-0">
         <span className="block truncate text-sm font-medium">{title}</span>
-        {subtitle && <span className="block truncate text-xs text-muted-foreground">{subtitle}</span>}
+        {subtitle && <span className="line-clamp-2 text-xs text-muted-foreground">{subtitle}</span>}
       </span>
       {badge}
     </button>

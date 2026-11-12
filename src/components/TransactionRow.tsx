@@ -48,7 +48,7 @@ export function TransactionRow({
           {t.status === 'needs_review' && <Badge variant="outline">Review</Badge>}
           {t.status === 'ignored' && <Badge variant="secondary">Ignored</Badge>}
         </span>
-        <span className="block truncate text-xs text-muted-foreground">
+        <span className="line-clamp-2 text-xs text-muted-foreground">
           {[timeLabel(t.occurred_time), trip ? `Trip: ${trip.name}` : (category?.name ?? 'No category'), account?.name ?? 'Cash / other', payer && `${credit ? 'to' : 'by'} ${payer}`, split]
             .filter(Boolean)
             .join(' · ')}

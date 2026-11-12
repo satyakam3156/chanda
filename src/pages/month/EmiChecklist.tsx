@@ -39,7 +39,7 @@ export function EmiChecklist({ month, items, trips, onChanged }: { month: string
               )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{it.plan.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">
+                <span className="line-clamp-2 text-xs text-muted-foreground">
                   {[
                     `Instalment ${it.seq} of ${it.plan.instalments}`,
                     p ? `ticked` : `not ticked · ${nameOf(it.plan.paid_by_member_id)} pays`,
